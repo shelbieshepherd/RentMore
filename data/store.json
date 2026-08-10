@@ -1,0 +1,721 @@
+{
+  "properties": [
+    {
+      "id": "p1",
+      "name": "Sunset Villa",
+      "address": "123 Ocean Drive, Santa Monica, CA 90401",
+      "type": "short-term",
+      "monthlyRent": 4500,
+      "nightlyRate": 450,
+      "deposit": 1000,
+      "status": "occupied",
+      "ownerId": "o1",
+      "image": "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=300&fit=crop",
+      "images": [
+        "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&h=600&fit=crop"
+      ],
+      "bedrooms": 3,
+      "bathrooms": 2,
+      "sqft": 1800,
+      "maxGuests": 6,
+      "description": "Stunning beachfront villa with panoramic ocean views. Features a modern kitchen, spacious living area, and private deck. Steps from the sand \u2014 perfect for family getaways.",
+      "amenities": [
+        "Ocean View",
+        "Private Deck",
+        "Full Kitchen",
+        "WiFi",
+        "Parking",
+        "AC",
+        "Washer/Dryer",
+        "BBQ Grill"
+      ]
+    },
+    {
+      "id": "p2",
+      "name": "Downtown Loft",
+      "address": "456 Pine Street, Apt 12, Los Angeles, CA 90012",
+      "type": "long-term",
+      "monthlyRent": 2800,
+      "deposit": 2800,
+      "status": "occupied",
+      "leaseStart": "2024-01-15",
+      "leaseEnd": "2025-01-14",
+      "ownerId": "o1",
+      "image": "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop",
+      "images": [
+        "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop"
+      ],
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "sqft": 850,
+      "maxGuests": 2,
+      "description": "Chic urban loft in the heart of downtown LA. Exposed brick, high ceilings, and floor-to-ceiling windows. Walking distance to galleries, restaurants, and metro.",
+      "amenities": [
+        "High Ceilings",
+        "Exposed Brick",
+        "Gym Access",
+        "WiFi",
+        "AC",
+        "In-Unit Laundry",
+        "Rooftop Access"
+      ]
+    },
+    {
+      "id": "p3",
+      "name": "Mountain Cabin",
+      "address": "789 Forest Trail, Big Bear Lake, CA 92315",
+      "type": "short-term",
+      "monthlyRent": 3200,
+      "nightlyRate": 380,
+      "deposit": 800,
+      "status": "vacant",
+      "ownerId": "o2",
+      "image": "https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=400&h=300&fit=crop",
+      "images": [
+        "https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1449158743715-0a90ebb6d2d8?w=800&h=600&fit=crop"
+      ],
+      "bedrooms": 2,
+      "bathrooms": 1.5,
+      "sqft": 1200,
+      "maxGuests": 4,
+      "description": "Cozy log cabin nestled in the pines. Stone fireplace, hot tub on the deck, and a fully stocked kitchen. Perfect for ski weekends or summer hiking trips.",
+      "amenities": [
+        "Hot Tub",
+        "Fireplace",
+        "Pet Friendly",
+        "Full Kitchen",
+        "WiFi",
+        "Parking",
+        "Hiking Trails"
+      ]
+    },
+    {
+      "id": "p4",
+      "name": "Harbor View Condo",
+      "address": "321 Marina Blvd, San Diego, CA 92101",
+      "type": "long-term",
+      "monthlyRent": 3500,
+      "deposit": 3500,
+      "status": "occupied",
+      "leaseStart": "2024-03-01",
+      "leaseEnd": "2025-02-28",
+      "ownerId": "o2",
+      "image": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&h=300&fit=crop",
+      "images": [
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&h=600&fit=crop"
+      ],
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "sqft": 1100,
+      "maxGuests": 4,
+      "description": "Modern waterfront condo with marina views. Open floor plan, granite countertops, and resort-style amenities including pool, spa, and fitness center.",
+      "amenities": [
+        "Marina View",
+        "Pool",
+        "Spa",
+        "Gym",
+        "Secure Parking",
+        "WiFi",
+        "AC",
+        "Balcony"
+      ]
+    },
+    {
+      "id": "p5",
+      "name": "Urban Studio",
+      "address": "555 Market Street, #301, San Francisco, CA 94105",
+      "type": "long-term",
+      "monthlyRent": 2200,
+      "deposit": 2200,
+      "status": "vacant",
+      "ownerId": "o3",
+      "image": "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=400&h=300&fit=crop",
+      "images": [
+        "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop"
+      ],
+      "bedrooms": 0,
+      "bathrooms": 1,
+      "sqft": 500,
+      "maxGuests": 2,
+      "description": "Efficient studio in the Financial District. Brand new appliances, smart home features, and a Murphy bed. Ideal for professionals who want to be in the center of it all.",
+      "amenities": [
+        "Smart Home",
+        "New Appliances",
+        "Gym",
+        "Concierge",
+        "WiFi",
+        "AC",
+        "Bike Storage"
+      ]
+    },
+    {
+      "id": "p6",
+      "name": "Beach House Retreat",
+      "address": "777 Shoreline Ave, Malibu, CA 90265",
+      "type": "short-term",
+      "monthlyRent": 5800,
+      "nightlyRate": 580,
+      "deposit": 1500,
+      "status": "occupied",
+      "ownerId": "o3",
+      "image": "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=300&fit=crop",
+      "images": [
+        "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&h=600&fit=crop",
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&h=600&fit=crop"
+      ],
+      "bedrooms": 4,
+      "bathrooms": 3,
+      "sqft": 2400,
+      "maxGuests": 8,
+      "description": "Luxurious Malibu beach house with private beach access. Saltwater pool, outdoor kitchen, game room, and a master suite with spa bath. The ultimate coastal retreat.",
+      "amenities": [
+        "Beach Access",
+        "Pool",
+        "Outdoor Kitchen",
+        "Game Room",
+        "Spa Bath",
+        "WiFi",
+        "Parking",
+        "AC",
+        "Fire Pit"
+      ]
+    }
+  ],
+  "tenants": [
+    {
+      "id": "t1",
+      "name": "Emily Rodriguez",
+      "email": "emily@email.com",
+      "phone": "(555) 101-0101",
+      "propertyId": "p2",
+      "type": "tenant",
+      "leaseStart": "2024-01-15",
+      "leaseEnd": "2025-01-14",
+      "rentAmount": 2800,
+      "deposit": 2800
+    },
+    {
+      "id": "t2",
+      "name": "James Wilson",
+      "email": "james@email.com",
+      "phone": "(555) 202-0202",
+      "propertyId": "p4",
+      "type": "tenant",
+      "leaseStart": "2024-03-01",
+      "leaseEnd": "2025-02-28",
+      "rentAmount": 3500,
+      "deposit": 3500
+    },
+    {
+      "id": "t3",
+      "name": "Lisa Thompson",
+      "email": "lisa@email.com",
+      "phone": "(555) 303-0303",
+      "propertyId": "p1",
+      "type": "guest",
+      "bookingStart": "2024-07-10",
+      "bookingEnd": "2024-07-17",
+      "nightlyRate": 450,
+      "checkoutStatus": "checked-in"
+    },
+    {
+      "id": "t4",
+      "name": "Alex Garcia",
+      "email": "alex@email.com",
+      "phone": "(555) 404-0404",
+      "propertyId": "p6",
+      "type": "guest",
+      "bookingStart": "2024-07-05",
+      "bookingEnd": "2024-07-12",
+      "nightlyRate": 580,
+      "checkoutStatus": "checked-in"
+    },
+    {
+      "id": "t5",
+      "name": "Maria Kim",
+      "email": "maria@email.com",
+      "phone": "(555) 505-0505",
+      "propertyId": "p1",
+      "type": "guest",
+      "bookingStart": "2024-08-01",
+      "bookingEnd": "2024-08-08",
+      "nightlyRate": 450,
+      "checkoutStatus": "upcoming"
+    },
+    {
+      "id": "t6",
+      "name": "Robert Taylor",
+      "email": "robert@email.com",
+      "phone": "(555) 606-0606",
+      "propertyId": "p6",
+      "type": "guest",
+      "bookingStart": "2024-06-20",
+      "bookingEnd": "2024-06-27",
+      "nightlyRate": 580,
+      "checkoutStatus": "checked-out"
+    }
+  ],
+  "payments": [
+    {
+      "id": "pay1",
+      "propertyId": "p2",
+      "tenantId": "t1",
+      "amount": 2800,
+      "date": "2024-07-01",
+      "dueDate": "2024-07-01",
+      "status": "paid",
+      "method": "ACH",
+      "description": "July 2024 Rent"
+    },
+    {
+      "id": "pay2",
+      "propertyId": "p4",
+      "tenantId": "t2",
+      "amount": 3500,
+      "date": "2024-07-01",
+      "dueDate": "2024-07-01",
+      "status": "paid",
+      "method": "credit card",
+      "description": "July 2024 Rent"
+    },
+    {
+      "id": "pay3",
+      "propertyId": "p1",
+      "tenantId": "t3",
+      "amount": 3150,
+      "date": "2024-07-10",
+      "dueDate": "2024-07-10",
+      "status": "paid",
+      "method": "credit card",
+      "description": "Beach Villa - 7 night stay"
+    },
+    {
+      "id": "pay4",
+      "propertyId": "p6",
+      "tenantId": "t4",
+      "amount": 4060,
+      "date": "2024-07-05",
+      "dueDate": "2024-07-05",
+      "status": "paid",
+      "method": "credit card",
+      "description": "Beach House - 7 night stay"
+    },
+    {
+      "id": "pay5",
+      "propertyId": "p2",
+      "tenantId": "t1",
+      "amount": 2800,
+      "date": "2024-06-01",
+      "dueDate": "2024-06-01",
+      "status": "paid",
+      "method": "ACH",
+      "description": "June 2024 Rent"
+    },
+    {
+      "id": "pay6",
+      "propertyId": "p4",
+      "tenantId": "t2",
+      "amount": 3500,
+      "date": "2024-06-01",
+      "dueDate": "2024-06-01",
+      "status": "paid",
+      "method": "ACH",
+      "description": "June 2024 Rent"
+    },
+    {
+      "id": "pay7",
+      "propertyId": "p2",
+      "tenantId": "t1",
+      "amount": 2800,
+      "dueDate": "2024-08-01",
+      "date": "",
+      "status": "pending",
+      "method": "ACH",
+      "description": "August 2024 Rent"
+    },
+    {
+      "id": "pay8",
+      "propertyId": "p4",
+      "tenantId": "t2",
+      "amount": 3500,
+      "dueDate": "2024-08-01",
+      "date": "",
+      "status": "pending",
+      "method": "ACH",
+      "description": "August 2024 Rent"
+    },
+    {
+      "id": "pay9",
+      "propertyId": "p5",
+      "tenantId": "",
+      "amount": 2200,
+      "dueDate": "2024-07-01",
+      "date": "",
+      "status": "overdue",
+      "method": "ACH",
+      "description": "July 2024 Rent - Vacant"
+    },
+    {
+      "id": "pay10",
+      "propertyId": "p3",
+      "tenantId": "",
+      "amount": 3200,
+      "dueDate": "2024-06-15",
+      "date": "",
+      "status": "overdue",
+      "method": "credit card",
+      "description": "June Booking - Unpaid"
+    },
+    {
+      "id": "pay11",
+      "propertyId": "p6",
+      "tenantId": "t6",
+      "amount": 4060,
+      "date": "2024-06-20",
+      "dueDate": "2024-06-20",
+      "status": "paid",
+      "method": "credit card",
+      "description": "Beach House - 7 night stay (June)"
+    },
+    {
+      "id": "pay12",
+      "propertyId": "p1",
+      "tenantId": "t5",
+      "amount": 3150,
+      "dueDate": "2024-08-01",
+      "date": "",
+      "status": "pending",
+      "method": "credit card",
+      "description": "Beach Villa - 7 night stay (Aug)"
+    }
+  ],
+  "maintenanceRequests": [
+    {
+      "id": "m1",
+      "propertyId": "p2",
+      "description": "Leaking faucet in kitchen",
+      "priority": "medium",
+      "status": "in-progress",
+      "assignedTo": "John (Plumber)",
+      "dateReported": "2024-07-05"
+    },
+    {
+      "id": "m2",
+      "propertyId": "p4",
+      "description": "AC unit not cooling properly",
+      "priority": "high",
+      "status": "open",
+      "assignedTo": "Steve (HVAC)",
+      "dateReported": "2024-07-12"
+    },
+    {
+      "id": "m3",
+      "propertyId": "p1",
+      "description": "Broken window in master bedroom",
+      "priority": "urgent",
+      "status": "open",
+      "assignedTo": "Glass Doctor",
+      "dateReported": "2024-07-14"
+    },
+    {
+      "id": "m4",
+      "propertyId": "p6",
+      "description": "Garbage disposal jammed",
+      "priority": "low",
+      "status": "resolved",
+      "assignedTo": "Mike (Handyman)",
+      "dateReported": "2024-06-28",
+      "dateResolved": "2024-06-30"
+    },
+    {
+      "id": "m5",
+      "propertyId": "p2",
+      "description": "Smoke detector battery replacement",
+      "priority": "low",
+      "status": "resolved",
+      "assignedTo": "Building Maintenance",
+      "dateReported": "2024-06-15",
+      "dateResolved": "2024-06-16"
+    }
+  ],
+  "ownerPayouts": [
+    {
+      "id": "op1",
+      "ownerId": "o1",
+      "propertyId": "p1",
+      "period": "July 2024",
+      "amount": 3150,
+      "status": "pending"
+    },
+    {
+      "id": "op2",
+      "ownerId": "o1",
+      "propertyId": "p2",
+      "period": "July 2024",
+      "amount": 2800,
+      "status": "paid",
+      "datePaid": "2024-07-05"
+    },
+    {
+      "id": "op3",
+      "ownerId": "o2",
+      "propertyId": "p4",
+      "period": "July 2024",
+      "amount": 3500,
+      "status": "pending"
+    },
+    {
+      "id": "op4",
+      "ownerId": "o3",
+      "propertyId": "p6",
+      "period": "July 2024",
+      "amount": 4060,
+      "status": "pending"
+    },
+    {
+      "id": "op5",
+      "ownerId": "o2",
+      "propertyId": "p3",
+      "period": "June 2024",
+      "amount": 0,
+      "status": "paid",
+      "datePaid": "2024-07-01"
+    },
+    {
+      "id": "op6",
+      "ownerId": "o1",
+      "propertyId": "p1",
+      "period": "June 2024",
+      "amount": 2800,
+      "status": "paid",
+      "datePaid": "2024-07-01"
+    }
+  ],
+  "bookings": [
+    {
+      "id": "b1",
+      "propertyId": "p1",
+      "guestName": "Lisa Thompson",
+      "guestEmail": "lisa@email.com",
+      "startDate": "2024-07-10",
+      "endDate": "2024-07-17",
+      "nightlyRate": 450,
+      "status": "checked-in",
+      "totalAmount": 3150,
+      "source": "direct"
+    },
+    {
+      "id": "b2",
+      "propertyId": "p1",
+      "guestName": "Maria Kim",
+      "guestEmail": "maria@email.com",
+      "startDate": "2024-08-01",
+      "endDate": "2024-08-08",
+      "nightlyRate": 450,
+      "status": "confirmed",
+      "totalAmount": 3150,
+      "source": "airbnb"
+    },
+    {
+      "id": "b3",
+      "propertyId": "p1",
+      "guestName": "John Davis",
+      "guestEmail": "john@email.com",
+      "startDate": "2024-08-15",
+      "endDate": "2024-08-22",
+      "nightlyRate": 475,
+      "status": "confirmed",
+      "totalAmount": 3325,
+      "source": "booking.com"
+    },
+    {
+      "id": "b4",
+      "propertyId": "p1",
+      "guestName": "Sarah Miller",
+      "guestEmail": "sarah@email.com",
+      "startDate": "2024-09-01",
+      "endDate": "2024-09-05",
+      "nightlyRate": 450,
+      "status": "confirmed",
+      "totalAmount": 1800,
+      "source": "direct"
+    },
+    {
+      "id": "b5",
+      "propertyId": "p6",
+      "guestName": "Alex Garcia",
+      "guestEmail": "alex@email.com",
+      "startDate": "2024-07-05",
+      "endDate": "2024-07-12",
+      "nightlyRate": 580,
+      "status": "checked-in",
+      "totalAmount": 4060,
+      "source": "vrbo"
+    },
+    {
+      "id": "b6",
+      "propertyId": "p6",
+      "guestName": "Robert Taylor",
+      "guestEmail": "robert@email.com",
+      "startDate": "2024-06-20",
+      "endDate": "2024-06-27",
+      "nightlyRate": 580,
+      "status": "checked-out",
+      "totalAmount": 4060,
+      "source": "direct"
+    },
+    {
+      "id": "b7",
+      "propertyId": "p6",
+      "guestName": "Jennifer Park",
+      "guestEmail": "jennifer@email.com",
+      "startDate": "2024-07-20",
+      "endDate": "2024-07-27",
+      "nightlyRate": 600,
+      "status": "confirmed",
+      "totalAmount": 4200,
+      "source": "airbnb"
+    },
+    {
+      "id": "b8",
+      "propertyId": "p6",
+      "guestName": "Michael Brown",
+      "guestEmail": "michael.b@email.com",
+      "startDate": "2024-08-10",
+      "endDate": "2024-08-17",
+      "nightlyRate": 620,
+      "status": "confirmed",
+      "totalAmount": 4340,
+      "source": "booking.com"
+    },
+    {
+      "id": "b9",
+      "propertyId": "p3",
+      "guestName": "David Clark",
+      "guestEmail": "david.c@email.com",
+      "startDate": "2024-08-05",
+      "endDate": "2024-08-12",
+      "nightlyRate": 380,
+      "status": "confirmed",
+      "totalAmount": 2660,
+      "source": "direct"
+    },
+    {
+      "id": "b10",
+      "propertyId": "p3",
+      "guestName": "Emma Wilson",
+      "guestEmail": "emma.w@email.com",
+      "startDate": "2024-09-15",
+      "endDate": "2024-09-22",
+      "nightlyRate": 400,
+      "status": "confirmed",
+      "totalAmount": 2800,
+      "source": "vrbo"
+    },
+    {
+      "id": "b11",
+      "propertyId": "p1",
+      "guestName": "Previous Guest",
+      "guestEmail": "prev@email.com",
+      "startDate": "2024-06-15",
+      "endDate": "2024-06-22",
+      "nightlyRate": 425,
+      "status": "checked-out",
+      "totalAmount": 2975,
+      "source": "airbnb"
+    },
+    {
+      "id": "b12",
+      "propertyId": "p6",
+      "guestName": "Tom Harris",
+      "guestEmail": "tom@email.com",
+      "startDate": "2024-09-01",
+      "endDate": "2024-09-08",
+      "nightlyRate": 600,
+      "status": "confirmed",
+      "totalAmount": 4200,
+      "source": "direct"
+    }
+  ],
+  "calendarBlocks": [
+    {
+      "id": "cb1",
+      "propertyId": "p2",
+      "type": "lease",
+      "startDate": "2024-01-15",
+      "endDate": "2025-01-14",
+      "title": "Emily Rodriguez - Lease",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "cb2",
+      "propertyId": "p4",
+      "type": "lease",
+      "startDate": "2024-03-01",
+      "endDate": "2025-02-28",
+      "title": "James Wilson - Lease",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "cb3",
+      "propertyId": "p2",
+      "type": "maintenance",
+      "startDate": "2024-07-05",
+      "endDate": "2024-07-07",
+      "title": "Plumbing repair",
+      "color": "#ef4444"
+    },
+    {
+      "id": "cb4",
+      "propertyId": "p4",
+      "type": "maintenance",
+      "startDate": "2024-07-15",
+      "endDate": "2024-07-16",
+      "title": "AC repair",
+      "color": "#ef4444"
+    },
+    {
+      "id": "cb5",
+      "propertyId": "p3",
+      "type": "blocked",
+      "startDate": "2024-07-20",
+      "endDate": "2024-07-25",
+      "title": "Owner personal use",
+      "color": "#8b5cf6"
+    },
+    {
+      "id": "cb6",
+      "propertyId": "p5",
+      "type": "blocked",
+      "startDate": "2024-07-01",
+      "endDate": "2024-07-31",
+      "title": "Renovations",
+      "color": "#f59e0b"
+    }
+  ],
+  "owners": [
+    {
+      "id": "o1",
+      "name": "Michael Chen",
+      "email": "michael@example.com",
+      "phone": "(555) 111-2222"
+    },
+    {
+      "id": "o2",
+      "name": "Sarah Johnson",
+      "email": "sarah@example.com",
+      "phone": "(555) 333-4444"
+    },
+    {
+      "id": "o3",
+      "name": "David Williams",
+      "email": "david@example.com",
+      "phone": "(555) 555-6666"
+    }
+  ]
+}

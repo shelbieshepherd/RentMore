@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .stat-card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-shadow hover:shadow-md;
+  }
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium text-white transition-colors;
+    background-color: #0f3c52;
+  }
+  .btn-primary:hover {
+    background-color: #0a2d3e;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors border border-gray-300 text-gray-700 bg-white hover:bg-gray-50;
+  }
+  .btn-accent {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium text-white transition-colors;
+    background-color: #8cc540;
+  }
+  .btn-accent:hover {
+    background-color: #7ab336;
+  }
+  .input-field {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0f3c52] focus:border-transparent;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden;
+  }
+  .sidebar-link {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors;
+  }
+  .sidebar-link-active {
+    @apply text-white;
+    background-color: #0f3c52;
+  }
+  .sidebar-link-inactive {
+    @apply text-gray-300 hover:text-white hover:bg-white/10;
+  }
+}
+
+@layer utilities {
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+}
