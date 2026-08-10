@@ -20,7 +20,7 @@ export const authenticateUser = createServerFn()
   .validator((data: { email: string; password: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      SELECT id, company_id, email, name, role
+      SELECT id, company_id, email, name, role, email_verified
       FROM users
       WHERE email = ${data.email} AND password_hash = crypt(${data.password}, password_hash)
       LIMIT 1
@@ -32,7 +32,7 @@ export const fetchUserById = createServerFn()
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      SELECT id, company_id, email, name, role
+      SELECT id, company_id, email, name, role, email_verified
       FROM users WHERE id = ${data.id}::uuid
       LIMIT 1
     `;
@@ -50,6 +50,26 @@ export const fetchUsersByCompany = createServerFn()
     return rows.map(jsonSafe);
   });
 
+// Plan management
+export const fetchCompanyPlan = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      SELECT subscription_tier FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1
+    `;
+    return rows[0]?.subscription_tier || null;
+  });
+
+export const updateCompanySubscription = createServerFn()
+  .validator((data: { companyId: string; subscriptionTier: string }) => data)
+  .handler(async ({ data }) => {
+    await sql()`
+      UPDATE companies SET subscription_tier = ${data.subscriptionTier}
+      WHERE id = ${data.companyId}::uuid
+    `;
+    return { success: true };
+  });
+
 export const registerCompany = createServerFn()
   .validator((data: { name: string; email: string; password: string }) => data)
   .handler(async ({ data }) => {
@@ -63,20 +83,44 @@ export const registerCompany = createServerFn()
     // Create company
     const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const companyRows = await sql()`
-      INSERT INTO companies (name, slug)
-      VALUES (${data.name}, ${slug})
+      INSERT INTO companies (name, slug, subscription_tier)
+      VALUES (${data.name}, ${slug}, 'free')
       RETURNING id
     `;
     const companyId = companyRows[0].id;
-    // Create admin user with bcrypt hash
+    // Generate verification token (24h expiry)
+    const token = crypto.randomUUID();
+    const expires = new Date(Date.now() + 86400000).toISOString();
+    // Create admin user with bcrypt hash + verification token
     const userRows = await sql()`
-      INSERT INTO users (company_id, email, password_hash, name, role)
+      INSERT INTO users (company_id, email, password_hash, name, role, verify_token, verify_token_expires)
       VALUES (${companyId}::uuid, ${data.email},
         crypt(${data.password}, gen_salt('bf')),
-        ${data.name}, 'admin')
+        ${data.name}, 'admin', ${token}, ${expires}::timestamptz)
       RETURNING id, company_id, email, name, role
     `;
-    return userRows[0];
+    return { ...userRows[0], verifyToken: token };
+  });
+
+export const queueVerificationEmail = createServerFn()
+  .validator((data: { email: string; token: string }) => data)
+  .handler(({ data }) => {
+    const fs = require("fs");
+    const queuePath = "/home/team/shared/email-queue/email-queue.jsonl";
+    const baseUrl = "https://6cb00109005ce5add83d71c194d57d02.ctonew.app";
+    const verifyLink = `${baseUrl}/verify?token=${encodeURIComponent(data.token)}`;
+    const entry = {
+      id: `verify-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      queuedAt: new Date().toISOString(),
+      to: data.email,
+      toName: "",
+      subject: "Verify your RentVue account",
+      html: `<p>Welcome to RentVue!</p><p>Please verify your email address by clicking the link below:</p><p><a href="${verifyLink}">${verifyLink}</a></p><p>This link expires in 24 hours.</p><p>If you didn't create a RentVue account, you can ignore this email.</p>`,
+    };
+    try {
+      fs.appendFileSync(queuePath, JSON.stringify(entry) + "\n");
+    } catch { /* queue write failure is non-fatal */ }
+    return { success: true };
   });
 
 export const insertUser = createServerFn()
@@ -96,6 +140,43 @@ export const insertUser = createServerFn()
       RETURNING id, company_id, email, name, role
     `;
     return rows[0];
+  });
+
+// ── Email Verification ──
+export const verifyEmail = createServerFn()
+  .validator((data: { token: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      SELECT id, email, verify_token_expires FROM users
+      WHERE verify_token = ${data.token} LIMIT 1
+    `;
+    if (rows.length === 0) return { valid: false, error: "Invalid or expired verification link." };
+    const user = rows[0];
+    if (new Date(user.verify_token_expires) < new Date()) {
+      return { valid: false, error: "Verification link has expired." };
+    }
+    await sql()`
+      UPDATE users SET email_verified = true, verify_token = NULL, verify_token_expires = NULL
+      WHERE id = ${user.id}::uuid
+    `;
+    return { valid: true, email: user.email };
+  });
+
+export const regenerateVerifyToken = createServerFn()
+  .validator((data: { email: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      SELECT id, email_verified FROM users WHERE email = ${data.email} LIMIT 1
+    `;
+    if (rows.length === 0) return { success: false, error: "No account found with that email." };
+    if (rows[0].email_verified) return { success: false, error: "Email already verified." };
+    const token = crypto.randomUUID();
+    const expires = new Date(Date.now() + 86400000).toISOString();
+    await sql()`
+      UPDATE users SET verify_token = ${token}, verify_token_expires = ${expires}::timestamptz
+      WHERE id = ${rows[0].id}::uuid
+    `;
+    return { success: true, token };
   });
 
 // ── Properties ──

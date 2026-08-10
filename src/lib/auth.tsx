@@ -11,6 +11,7 @@ export type User = {
   companyId?: string;
   avatar?: string;
   ownerId?: string;
+  emailVerified?: boolean;
 };
 
 type AuthContextType = {
@@ -22,18 +23,26 @@ type AuthContextType = {
   allUsers: User[];
 };
 
-// Seed users as fallback when DB is unavailable
+// Seed users as fallback when DB is unavailable — always verified
 export const seedUsers: (User & { password: string })[] = [
-  { id: "u1", email: "admin@rentvue.com", password: "password123", name: "Alex Morgan", role: "admin" },
-  { id: "u2", email: "sarah@rentvue.com", password: "password123", name: "Sarah Chen", role: "agent" },
-  { id: "u3", email: "mike@rentvue.com", password: "password123", name: "Mike Rivera", role: "agent" },
-  { id: "u4", email: "jen@rentvue.com", password: "password123", name: "Jen Walsh", role: "agent" },
-  { id: "u5", email: "robert@example.com", password: "password123", name: "Robert Chen", role: "owner", ownerId: "o1" },
-  { id: "u6", email: "maria@example.com", password: "password123", name: "Maria Santos", role: "owner", ownerId: "o2" },
-  { id: "u7", email: "james@example.com", password: "password123", name: "James Wilson", role: "owner", ownerId: "o3" },
+  { id: "u1", email: "admin@rentvue.com", password: "password123", name: "Alex Morgan", role: "admin", emailVerified: true },
+  { id: "u2", email: "sarah@rentvue.com", password: "password123", name: "Sarah Chen", role: "agent", emailVerified: true },
+  { id: "u3", email: "mike@rentvue.com", password: "password123", name: "Mike Rivera", role: "agent", emailVerified: true },
+  { id: "u4", email: "jen@rentvue.com", password: "password123", name: "Jen Walsh", role: "agent", emailVerified: true },
+  { id: "u5", email: "robert@example.com", password: "password123", name: "Robert Chen", role: "owner", ownerId: "o1", emailVerified: true },
+  { id: "u6", email: "maria@example.com", password: "password123", name: "Maria Santos", role: "owner", ownerId: "o2", emailVerified: true },
+  { id: "u7", email: "james@example.com", password: "password123", name: "James Wilson", role: "owner", ownerId: "o3", emailVerified: true },
 ];
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+// Owner and known-real accounts are exempt from email verification gating.
+const VERIFICATION_EXEMPT_EMAILS = new Set<string>([
+  "shelbie@sheprealty.com",
+  "admin@rentvue.com",
+  "staff@rentvue.com",
+  "manager@rentvue.com",
+]);
 
 // Try DB auth, fall back to seed
 async function authenticateWithDB(email: string, password: string): Promise<User | null> {
@@ -41,9 +50,11 @@ async function authenticateWithDB(email: string, password: string): Promise<User
     const { authenticateUser } = await import("./db-queries");
     const result = await authenticateUser({ data: { email, password } });
     if (result) {
+      const isExempt = VERIFICATION_EXEMPT_EMAILS.has(email);
       return {
         id: result.id, email: result.email, name: result.name,
         role: result.role as UserRole, companyId: result.company_id,
+        emailVerified: isExempt ? true : result.email_verified,
       };
     }
   } catch {
@@ -57,9 +68,11 @@ async function fetchDbUserById(id: string): Promise<User | null> {
     const { fetchUserById } = await import("./db-queries");
     const result = await fetchUserById({ data: { id } });
     if (result) {
+      const isExempt = result.email && VERIFICATION_EXEMPT_EMAILS.has(result.email);
       return {
         id: result.id, email: result.email, name: result.name,
         role: result.role as UserRole, companyId: result.company_id,
+        emailVerified: isExempt ? true : result.email_verified,
       };
     }
   } catch { /* DB unavailable */ }
@@ -121,6 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (dbUser) {
       setUser(dbUser);
       setCookie("rentvue_session", JSON.stringify({ id: dbUser.id, email: dbUser.email, name: dbUser.name, role: dbUser.role, companyId: dbUser.companyId }), 7);
+      // Also store email for verification resend
+      if (!dbUser.emailVerified) {
+        setCookie("rentvue_signup_email", dbUser.email, 1);
+      }
       // Switch store to this user's company so DB queries target the right tenant
       if (dbUser.companyId) {
         const { setCompanyId } = await import("./shared-store");
@@ -141,23 +158,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: false, error: "Invalid email or password" };
   };
 
-  const register = async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const register = async (name: string, email: string, password: string): Promise<{ success: boolean; needsVerification?: boolean; error?: string }> => {
     try {
-      const { registerCompany } = await import("./db-queries");
+      const { registerCompany, queueVerificationEmail } = await import("./db-queries");
       const result = await registerCompany({ data: { name, email, password } });
-      const newUser: User = {
-        id: result.id, email: result.email, name: result.name,
-        role: result.role as UserRole, companyId: result.company_id,
-      };
-      setUser(newUser);
-      setDbUsers([newUser]);
-      setCookie("rentvue_session", JSON.stringify({ id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role, companyId: newUser.companyId }), 7);
-      // Switch store to the new company
-      if (newUser.companyId) {
-        const { setCompanyId } = await import("./shared-store");
-        setCompanyId(newUser.companyId);
+      // Queue verification email (best-effort, non-blocking)
+      if (result.verifyToken) {
+        queueVerificationEmail({ data: { email, token: result.verifyToken } }).catch(() => {});
       }
-      return { success: true };
+      // Don't auto-login — user must verify email first
+      return { success: true, needsVerification: true };
     } catch (e: any) {
       if (e?.message === "EMAIL_TAKEN") {
         return { success: false, error: "An account with this email already exists." };

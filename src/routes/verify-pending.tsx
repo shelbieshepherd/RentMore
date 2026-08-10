@@ -1,0 +1,91 @@
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+
+export const Route = createFileRoute("/verify-pending")({
+  component: VerifyPendingPage,
+});
+
+function VerifyPendingPage() {
+  const navigate = useNavigate();
+  const [resending, setResending] = useState(false);
+  const [resendDone, setResendDone] = useState(false);
+
+  async function handleResend() {
+    setResending(true);
+    // Get email from cookie if available, or prompt
+    const stored = typeof document !== "undefined" ? getCookie("rentvue_signup_email") : null;
+    const email = stored || (typeof window !== "undefined" ? prompt("Enter the email address you signed up with:") : null);
+    if (!email) {
+      setResending(false);
+      return;
+    }
+    try {
+      const { regenerateVerifyToken, queueVerificationEmail } = await import("~/lib/db-queries");
+      const result = await regenerateVerifyToken({ data: { email } });
+      if (result.success && result.token) {
+        await queueVerificationEmail({ data: { email, token: result.token } });
+        setResendDone(true);
+      } else {
+        alert(result.error || "Could not resend verification email.");
+      }
+    } catch {
+      alert("Could not resend verification email. Please try again later.");
+    }
+    setResending(false);
+  }
+
+  function handleLogout() {
+    // Clear session cookie
+    if (typeof document !== "undefined") {
+      document.cookie = "rentvue_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+      document.cookie = "rentvue_signup_email=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    }
+    navigate({ to: "/login" });
+  }
+
+  return (
+    <div className="min-h-dvh flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50 px-4">
+      <div className="w-full max-w-md text-center">
+        <div className="text-4xl mb-2">📧</div>
+        <h1 className="text-2xl font-bold mb-2" style={{ color: "#0f3c52" }}>Check Your Inbox</h1>
+        <p className="text-sm text-gray-500 mb-6">We sent a verification email to your address.</p>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+          <div className="text-5xl mb-4">✉️</div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Verify your email</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Click the link in the email we sent to verify your account.
+            If you don't see it, check your spam folder.
+          </p>
+
+          {resendDone ? (
+            <p className="text-sm text-green-600 mb-4">Verification email resent — check your inbox.</p>
+          ) : (
+            <button
+              onClick={handleResend}
+              disabled={resending}
+              className="text-sm font-medium mb-4"
+              style={{ color: "#0f3c52" }}
+            >
+              {resending ? "Sending..." : "Resend verification email"}
+            </button>
+          )}
+
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-400 hover:text-gray-600"
+            >
+              ← Back to login
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return match ? decodeURIComponent(match[2]) : null;
+}

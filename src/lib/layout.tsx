@@ -13,6 +13,7 @@ const navItems = [
   { href: "/listings", label: "View Listings", icon: "🖼️" },
   { href: "/assistant", label: "Assistant", icon: "🧠" },
   { href: "/calendar", label: "Calendar", icon: "📅" },
+  { href: "/plan", label: "Plan", icon: "📋" },
   { href: "/properties", label: "Properties", icon: "🏠" },
   { href: "/owners", label: "Owners", icon: "🏦" },
   { href: "/tenants", label: "Tenants & Guests", icon: "👥" },
@@ -41,6 +42,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
   const [showLogout, setShowLogout] = useState(false);
   const [guestSearch, setGuestSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [planTier, setPlanTier] = useState<string | null>(null);
 
   const searchResults = useMemo(() => {
     if (!guestSearch || guestSearch.length < 2) return [];
@@ -61,10 +63,23 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
   useEffect(() => {
     if (!isAuthenticated) {
       navigate({ to: "/login" });
+    } else if (user && user.emailVerified === false && user.companyId !== "00000000-0000-0000-0000-000000000001") {
+      navigate({ to: "/verify-pending" });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, navigate]);
 
   if (!isAuthenticated) return null;
+  if (user && user.emailVerified === false && user.companyId !== "00000000-0000-0000-0000-000000000001") return null;
+
+  // Fetch real plan tier
+  useEffect(() => {
+    if (!user?.companyId) return;
+    import("~/lib/db-queries").then(({ fetchCompanyPlan }) => {
+      fetchCompanyPlan({ data: { companyId: user.companyId! } }).then(tier => {
+        setPlanTier(typeof tier === "string" ? tier : null);
+      }).catch(() => {});
+    });
+  }, [user?.companyId]);
 
   const openForm = (type: QuickAddType) => {
     setShowQuickAdd(false);
@@ -199,7 +214,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
                   </>
                 )}
               </div>
-              <span className="badge bg-green-100 text-green-800">Pro Plan</span>
+              <span className={`badge ${planBadgeClass(planTier, user?.companyId)}`}>{planLabel(planTier, user?.companyId)}</span>
               {/* User dropdown */}
               <div className="relative">
                 <button
@@ -240,4 +255,25 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
       <AddMaintenanceModal isOpen={quickAddType === "maintenance"} onClose={() => setQuickAddType(null)} />
     </div>
   );
+}
+
+function planLabel(tier: string | null, companyId?: string): string {
+  if (companyId === "00000000-0000-0000-0000-000000000001") return "Demo";
+  if (!tier || tier === "free") return "Free";
+  if (tier === "starter") return "Starter";
+  if (tier === "growth") return "Growth";
+  if (tier === "pro") return "Pro";
+  if (tier === "enterprise") return "Enterprise";
+  if (tier.endsWith("_pending")) {
+    const base = tier.replace("_pending", "");
+    return base.charAt(0).toUpperCase() + base.slice(1) + " (pending)";
+  }
+  return tier;
+}
+
+function planBadgeClass(tier: string | null, companyId?: string): string {
+  if (companyId === "00000000-0000-0000-0000-000000000001") return "bg-gray-100 text-gray-600";
+  if (!tier || tier === "free") return "bg-gray-100 text-gray-600";
+  if (tier.includes("_pending")) return "bg-amber-100 text-amber-800";
+  return "bg-green-100 text-green-800";
 }

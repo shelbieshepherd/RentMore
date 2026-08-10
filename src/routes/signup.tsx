@@ -39,7 +39,15 @@ function SignupPage() {
     setLoading(false);
 
     if (result.success) {
-      navigate({ to: "/" });
+      if (result.needsVerification) {
+        // Store email so verify-pending can resend
+        if (typeof document !== "undefined") {
+          document.cookie = `rentvue_signup_email=${encodeURIComponent(email)}; path=/; max-age=86400`;
+        }
+        navigate({ to: "/verify-pending" });
+      } else {
+        navigate({ to: "/" });
+      }
     } else {
       setError(result.error || "Registration failed");
     }
