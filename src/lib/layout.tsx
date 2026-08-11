@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, Link } from "@tanstack/react-router";
 import { useAuth } from "~/lib/auth";
 import {
   AddPropertyModal, AddOccupantModal, AddMaintenanceModal,
@@ -42,6 +42,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
   const [guestSearch, setGuestSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [planTier, setPlanTier] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const searchResults = useMemo(() => {
     if (!guestSearch || guestSearch.length < 2) return [];
@@ -53,7 +54,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
 
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && guestSearch.trim().length >= 2) {
-      window.location.href = "/search?q=" + encodeURIComponent(guestSearch.trim());
+      navigate({ to: "/search", search: { q: guestSearch.trim() } });
       setShowSearch(false);
     }
   };
@@ -80,6 +81,15 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
     });
   }, [user?.companyId]);
 
+  // Close mobile drawer on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const openForm = (type: QuickAddType) => {
     setShowQuickAdd(false);
     setQuickAddType(type);
@@ -87,8 +97,16 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
 
   return (
     <div className="flex min-h-dvh">
+      {/* Mobile drawer overlay */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setMobileNavOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-30 flex h-dvh w-64 flex-col" style={{ backgroundColor: "#0f3c52" }}>
+      <aside
+        className={`fixed left-0 top-0 z-40 flex h-dvh w-64 flex-col transition-transform duration-200 ease-in-out ${mobileNavOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+        style={{ backgroundColor: "#0f3c52" }}
+      >
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
           <span className="text-2xl">🏘️</span>
@@ -104,15 +122,15 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
             const isActive = currentPath === item.href || 
               (item.href !== "/" && currentPath.startsWith(item.href));
             return (
-              <a
+              <Link
                 key={item.href}
-                href={item.href}
-                onClick={(e) => { e.preventDefault(); const href = item.href; setTimeout(() => { window.location.href = href + "?v=" + Date.now(); }, 100); }}
+                to={item.href}
+                onClick={() => setMobileNavOpen(false)}
                 className={`sidebar-link ${isActive ? "sidebar-link-active" : "sidebar-link-inactive"}`}
               >
                 <span className="text-lg">{item.icon}</span>
                 <span>{item.label}</span>
-              </a>
+              </Link>
             );
           })}
         </nav>
@@ -124,20 +142,30 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
       </aside>
 
       {/* Main content */}
-      <main className="ml-64 flex-1">
+      <main className="md:ml-64 flex-1 min-w-0">
         {/* Top bar */}
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-sm border-b border-gray-200 px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-500">Welcome back,</span>
-              <span className="text-sm font-semibold">{user?.name || "Property Manager"}</span>
-              {user?.role && (
-                <span className={`badge text-[10px] ${user.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"}`}>{user.role}</span>
-              )}
+        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-sm border-b border-gray-200 px-4 py-3 md:px-8 md:py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 md:gap-4 min-w-0">
+              {/* Hamburger (mobile) */}
+              <button
+                onClick={() => setMobileNavOpen(!mobileNavOpen)}
+                className="md:hidden flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer"
+                aria-label="Toggle navigation"
+              >
+                <span className="text-lg leading-none">{mobileNavOpen ? "✕" : "☰"}</span>
+              </button>
+              <div className="hidden sm:flex items-center gap-1 min-w-0">
+                <span className="text-sm text-gray-500">Welcome back,</span>
+                <span className="text-sm font-semibold truncate">{user?.name || "Property Manager"}</span>
+                {user?.role && (
+                  <span className={`badge text-[10px] ${user.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"}`}>{user.role}</span>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4">
               {/* Guest Search */}
-              <div className="relative">
+              <div className="relative hidden md:block">
                 <input
                   type="text"
                   className="input-field text-sm w-56 pl-8"
@@ -194,15 +222,15 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
                   className="btn-accent gap-1.5"
                 >
                   <span className="text-lg leading-none">+</span>
-                  <span>Quick Add</span>
+                  <span className="hidden sm:inline">Quick Add</span>
                 </button>
                 {showQuickAdd && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowQuickAdd(false)} />
                     <div className="absolute right-0 top-full mt-1 z-20 w-52 card shadow-lg py-1">
-                      <button onClick={() => { setShowQuickAdd(false); setTimeout(() => { window.location.href = "/add-property?v=" + Date.now(); }, 100); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-3">
+                      <Link to="/add-property" onClick={() => setShowQuickAdd(false)} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-3">
                         <span>🏠</span> Add Property
-                      </button>
+                      </Link>
                       <button onClick={() => openForm("occupant")} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-3">
                         <span>👤</span> Add Occupant
                       </button>
@@ -213,7 +241,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
                   </>
                 )}
               </div>
-              <span className={`badge ${planBadgeClass(planTier, user?.companyId)}`}>{planLabel(planTier, user?.companyId)}</span>
+              <span className={`badge hidden sm:inline-flex ${planBadgeClass(planTier, user?.companyId)}`}>{planLabel(planTier, user?.companyId)}</span>
               {/* User dropdown */}
               <div className="relative">
                 <button
@@ -243,7 +271,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
         </header>
 
         {/* Page content */}
-        <div className="p-8">
+        <div className="p-4 md:p-8">
           {children}
         </div>
       </main>
