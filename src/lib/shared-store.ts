@@ -43,6 +43,18 @@ export type OwnerCharge = OwnerChargeType;
 export type PaymentMethodEntry = PaymentMethodEntryType;
 
 // ── StoreState ──
+export interface HousekeepingTask {
+  id: string;
+  propertyId: string;
+  description: string;
+  status: "pending" | "assigned" | "in-progress" | "verified" | "done";
+  priority: "high" | "medium" | "low";
+  assignedTo: string;
+  dueDate: string;
+  window: string;
+  verifiedBy?: string;
+}
+
 export interface StoreState {
   properties: Property[];
   tenants: Tenant[];
@@ -51,6 +63,7 @@ export interface StoreState {
   ownerPayouts: OwnerPayout[];
   bookings: Booking[];
   calendarBlocks: CalendarBlock[];
+  housekeepingTasks: HousekeepingTask[];
   owners: Owner[];
   signedDocuments: SignedDocument[];
   documentTemplates: DocumentTemplate[];
@@ -75,6 +88,7 @@ const state: StoreState = {
   ownerPayouts: clone(seedPayouts),
   bookings: clone(seedBookings),
   calendarBlocks: clone(seedCalendarBlocks),
+  housekeepingTasks: [],
   owners: clone(seedOwners),
   signedDocuments: clone(seedSignedDocs),
   documentTemplates: clone(seedDocTemplates),
@@ -102,12 +116,24 @@ export function hydrateFromLocalStorage() {
   trySyncFromDB();
 }
 
+function mapDbDocument(d: any): SignedDocument {
+  const status = (["draft", "sent", "viewed", "renter-signed", "fully-executed"] as const).includes(d.status)
+    ? d.status
+    : d.status === "signed" ? "fully-executed" : "draft";
+  return {
+    id: d.id, bookingId: d.bookingId || undefined, propertyId: d.propertyId || "", ownerId: d.ownerId || "",
+    type: (["lease", "rental-agreement", "owner-agreement", "addendum"] as const).includes(d.type) ? d.type : "lease",
+    title: d.title, sentTo: d.recipientEmail || "", sentToName: d.recipientName || "",
+    status, content: d.content || "", createdAt: d.createdAt || "",
+  };
+}
+
 let syncAttempted = false;
 async function trySyncFromDB() {
   if (syncAttempted) return;
   syncAttempted = true;
   try {
-    const { fetchBookings, fetchTenants, fetchProperties, fetchPayments, fetchMaintenanceRequests, fetchOwners, fetchPaymentMethods } = await import("./db-queries");
+    const { fetchBookings, fetchTenants, fetchProperties, fetchPayments, fetchMaintenanceRequests, fetchOwners, fetchPaymentMethods, fetchVendors, fetchHousekeeping, fetchDocuments, fetchCalendarBlocks } = await import("./db-queries");
     const cid = state.companyId;
     const isDemo = cid === DEFAULT_COMPANY_ID;
     const results = await Promise.allSettled([
@@ -118,6 +144,10 @@ async function trySyncFromDB() {
       fetchMaintenanceRequests({ data: { companyId: cid } }),
       fetchOwners({ data: { companyId: cid } }),
       fetchPaymentMethods({ data: { companyId: cid } }),
+      fetchVendors({ data: { companyId: cid } }),
+      fetchHousekeeping({ data: { companyId: cid } }),
+      fetchDocuments({ data: { companyId: cid } }),
+      fetchCalendarBlocks({ data: { companyId: cid } }),
     ]);
     // Race guard — if company changed mid-fetch, discard stale results
     if (state.companyId !== cid) {
@@ -147,6 +177,18 @@ async function trySyncFromDB() {
     }
     if (results[6].status === "fulfilled" && (!isDemo || results[6].value.length > 0)) {
       state.paymentMethods = results[6].value.map(mapDbPaymentMethod);
+    }
+    if (results[7].status === "fulfilled" && (!isDemo || results[7].value.length > 0)) {
+      state.vendors = results[7].value;
+    }
+    if (results[8].status === "fulfilled" && (!isDemo || results[8].value.length > 0)) {
+      state.housekeepingTasks = results[8].value;
+    }
+    if (results[9].status === "fulfilled" && (!isDemo || results[9].value.length > 0)) {
+      state.signedDocuments = results[9].value.map(mapDbDocument);
+    }
+    if (results[10].status === "fulfilled" && (!isDemo || results[10].value.length > 0)) {
+      state.calendarBlocks = results[10].value;
     }
     if (!isDemo) state.dbConnected = true; // real company with DB = connected
     else if (results.some((r, i) => r.status === "fulfilled" && r.value.length > 0)) state.dbConnected = true;
@@ -531,6 +573,24 @@ export function updateVendor(id: string, updates: Partial<Vendor>) {
 export function deleteVendor(id: string) {
   const idx = state.vendors.findIndex(x => x.id === id);
   if (idx >= 0) { state.vendors.splice(idx, 1); notify(); }
+}
+export function addVendorRecord(v: Vendor) {
+  state.vendors.unshift(v); notify();
+}
+// ── Housekeeping store mutations (DB-persisted; the page calls server fns, then these keep the store in sync) ──
+export function addStoreHousekeeping(task: HousekeepingTask) {
+  state.housekeepingTasks.unshift(task); notify();
+}
+export function patchStoreHousekeeping(taskId: string, updates: Partial<HousekeepingTask>) {
+  const t = state.housekeepingTasks.find(x => x.id === taskId);
+  if (t) { Object.assign(t, updates); notify(); }
+}
+export function removeStoreHousekeeping(taskId: string) {
+  const i = state.housekeepingTasks.findIndex(x => x.id === taskId);
+  if (i >= 0) { state.housekeepingTasks.splice(i, 1); notify(); }
+}
+export function addStoreDocument(doc: SignedDocument) {
+  state.signedDocuments.unshift(doc); notify();
 }
 export function addVendorPayout(vp: Omit<VendorPayout, "id">): VendorPayout {
   const entry: VendorPayout = { ...vp, id: crypto.randomUUID() };

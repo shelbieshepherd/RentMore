@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { DashboardLayout } from "~/lib/layout";
-import { maintenanceRequests, properties, formatDate, formatCurrency, getStatusColor, type MaintenanceRequest } from "~/lib/data";
+import { formatDate, formatCurrency, getStatusColor, type MaintenanceRequest } from "~/lib/data";
 import { useStore } from "~/lib/store";
 import { addMaintenanceRequest } from "~/lib/shared-store";
 
@@ -22,7 +22,8 @@ function formatTimestamp(ts: string) {
 
 function MaintenancePage() {
   const store = useStore();
-  const requests = store.maintenanceRequests.length > 0 ? store.maintenanceRequests : maintenanceRequests;
+  const props = store.properties;
+  const requests = store.maintenanceRequests;
   const openRequests = requests.filter(m => m.status === "open" || m.status === "in-progress");
   const resolvedRequests = requests.filter(m => m.status === "resolved");
   const vendors = store.vendors;
@@ -31,7 +32,7 @@ function MaintenancePage() {
   // New request modal
   const [showNew, setShowNew] = useState(false);
   const [newDesc, setNewDesc] = useState("");
-  const [newPropId, setNewPropId] = useState(properties[0]?.id || "");
+  const [newPropId, setNewPropId] = useState(props[0]?.id || "");
   const [newPriority, setNewPriority] = useState<MaintenanceRequest["priority"]>("medium");
   const [newAssignedTo, setNewAssignedTo] = useState("");
 
@@ -124,13 +125,13 @@ function MaintenancePage() {
     if (updated) setDetailRequest(updated);
   };
 
-  const getPropertyName = (propId: string) => properties.find(p => p.id === propId)?.name ?? propId;
+  const getPropertyName = (propId: string) => props.find(p => p.id === propId)?.name ?? propId;
   const getVendorName = (vendorId?: string) => {
     if (!vendorId) return null;
     return vendors.find(v => v.id === vendorId) ?? null;
   };
   const getOwnerForProperty = (propId: string) => {
-    const prop = properties.find(p => p.id === propId);
+    const prop = props.find(p => p.id === propId);
     if (!prop) return null;
     return owners.find(o => o.id === prop.ownerId) ?? null;
   };
@@ -188,7 +189,7 @@ function MaintenancePage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {openRequests.map((req) => {
-                  const property = properties.find(p => p.id === req.propertyId);
+                  const property = props.find(p => p.id === req.propertyId);
                   const vendor = getVendorName(req.vendorId);
                   return (
                     <tr key={req.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openDetail(req)}>
@@ -237,7 +238,7 @@ function MaintenancePage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {resolvedRequests.map((req) => {
-                  const property = properties.find(p => p.id === req.propertyId);
+                  const property = props.find(p => p.id === req.propertyId);
                   return (
                     <tr key={req.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openDetail(req)}>
                       <td className="px-6 py-3 font-medium max-w-xs truncate">{req.description}</td>
@@ -280,7 +281,7 @@ function MaintenancePage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Property</label>
                 <select className="input-field" value={newPropId} onChange={e => setNewPropId(e.target.value)}>
-                  {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {props.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">

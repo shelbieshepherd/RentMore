@@ -3,7 +3,7 @@ import { useState } from "react";
 import { DashboardLayout } from "~/lib/layout";
 import { formatDate } from "~/lib/data";
 import { useStore } from "~/lib/store";
-import { addVendor, updateVendor, deleteVendor, updateVendorPayout, type Vendor } from "~/lib/shared-store";
+import { updateVendor, deleteVendor, addVendorRecord, updateVendorPayout, type Vendor } from "~/lib/shared-store";
 
 const ALL_SERVICES = ["plumbing", "hvac", "cleaning", "housekeeping", "electrical", "appliance", "general", "landscaping", "pest control", "roofing"];
 
@@ -19,10 +19,15 @@ export const Route = createFileRoute("/vendors")({
 
 function VendorsPage() {
   const store = useStore();
+  const companyId = store.companyId;
   const vendors = store.vendors;
   const vendorPayouts = store.vendorPayouts;
   const maintenanceRequests = store.maintenanceRequests;
   const owners = store.owners;
+
+  // Save/error state
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -76,7 +81,7 @@ function VendorsPage() {
     setFormServices(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formCompany.trim()) return;
 
@@ -91,18 +96,47 @@ function VendorsPage() {
       notes: formNotes.trim(),
     };
 
-    if (editingVendor) {
-      updateVendor(editingVendor.id, data);
-    } else {
-      addVendor(data);
+    setSaving(true); setFormError("");
+    try {
+      const { insertVendor, updateVendorDB } = await import("~/lib/db-queries");
+      if (editingVendor) {
+        await updateVendorDB({
+          data: {
+            companyId, vendorId: editingVendor.id,
+            updates: {
+              name: data.name, company: data.company, email: data.email, phone: data.phone,
+              service_types: JSON.stringify(data.serviceTypes),
+              ach_bank_name: data.achInfo.bankName, ach_routing_number: data.achInfo.routingNumber, ach_account_number: data.achInfo.accountNumber,
+              notes: data.notes,
+              ...(data.mailingAddress ? { mail_street: data.mailingAddress.street, mail_city: data.mailingAddress.city, mail_state: data.mailingAddress.state, mail_zip: data.mailingAddress.zip } : {}),
+            },
+          },
+        });
+        updateVendor(editingVendor.id, data);
+      } else {
+        const res = await insertVendor({ data: { companyId, ...data } });
+        addVendorRecord({ ...data, id: res.id });
+      }
+      setShowModal(false);
+    } catch (err: any) {
+      setFormError(err?.message || "Couldn't save vendor — please try again.");
+    } finally {
+      setSaving(false);
     }
-    setShowModal(false);
   };
 
-  const handleDelete = () => {
-    if (deleteTarget) {
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setSaving(true); setFormError("");
+    try {
+      const { deleteVendorDB } = await import("~/lib/db-queries");
+      await deleteVendorDB({ data: { companyId, vendorId: deleteTarget } });
       deleteVendor(deleteTarget);
       setDeleteTarget(null);
+    } catch (err: any) {
+      setFormError(err?.message || "Couldn't delete vendor — please try again.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -126,6 +160,7 @@ function VendorsPage() {
             <span>+</span> Add Vendor
           </button>
         </div>
+        {formError && <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2">{formError}</div>}
 
         {/* Vendor Table */}
         <div className="card">

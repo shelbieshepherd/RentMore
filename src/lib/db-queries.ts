@@ -722,6 +722,7 @@ export const fetchCalendarBlocks = createServerFn()
     return rows.map((b: any) => ({
       id: b.id, propertyId: b.property_id, type: b.type, startDate: String(b.start_date).slice(0, 10),
       endDate: String(b.end_date).slice(0, 10), title: b.title || "",
+      color: b.type === "maintenance" ? "#ef4444" : b.type === "lease" ? "#3b82f6" : b.type === "booking" ? "#22c55e" : "#8b5cf6",
     }));
   });
 

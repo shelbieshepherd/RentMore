@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { DashboardLayout } from "~/lib/layout";
 import { useStore } from "~/lib/store";
+import { addStoreDocument } from "~/lib/shared-store";
 import { queueEmail, leaseEmailTemplate } from "~/lib/email";
 
 export const Route = createFileRoute("/documents/")({
@@ -17,7 +18,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function DocumentsPage() {
-  const { signedDocuments, properties, addDocument } = useStore();
+  const { signedDocuments, properties, companyId } = useStore();
+  const [docError, setDocError] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterType, setFilterType] = useState("all");
   const [filterProperty, setFilterProperty] = useState("all");
@@ -41,10 +43,11 @@ export default function DocumentsPage() {
   const types = ["all", "lease", "rental-agreement", "owner-agreement"];
   const statuses = ["all", "draft", "sent", "viewed", "renter-signed", "fully-executed"];
 
-  function handleNewDoc() {
+  async function handleNewDoc() {
     if (!newDocTitle || !newDocRecipient || !newDocRecipientEmail || !newDocPropertyId) return;
     const prop = properties.find(p => p.id === newDocPropertyId);
-    addDocument({
+    const doc: typeof signedDocuments[0] = {
+      id: crypto.randomUUID(),
       propertyId: newDocPropertyId,
       ownerId: prop?.ownerId || "",
       type: newDocType,
@@ -54,9 +57,22 @@ export default function DocumentsPage() {
       status: "draft",
       content: newDocContent,
       createdAt: new Date().toISOString(),
-    });
-    setShowNewModal(false);
-    setNewDocTitle(""); setNewDocRecipient(""); setNewDocContent("");
+    };
+    setDocError("");
+    try {
+      const { insertDocument } = await import("~/lib/db-queries");
+      const res = await insertDocument({
+        data: {
+          companyId, propertyId: newDocPropertyId, title: newDocTitle, content: newDocContent,
+          type: newDocType, status: "draft", recipientName: newDocRecipient, recipientEmail: newDocRecipientEmail,
+        },
+      });
+      addStoreDocument({ ...doc, id: res.id });
+      setShowNewModal(false);
+      setNewDocTitle(""); setNewDocRecipient(""); setNewDocRecipientEmail(""); setNewDocContent("");
+    } catch (e: any) {
+      setDocError(e?.message || "Couldn't save document — please try again.");
+    }
   }
 
   const [sendStatus, setSendStatus] = useState<Record<string, string>>({});
@@ -279,6 +295,7 @@ export default function DocumentsPage() {
                   <label className="block text-xs font-medium text-gray-500 mb-1">Content</label>
                   <textarea className="input-field w-full" rows={6} value={newDocContent} onChange={e => setNewDocContent(e.target.value)} placeholder="Document body..." />
                 </div>
+                {docError && <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">{docError}</div>}
                 <div className="flex gap-3">
                   <button onClick={() => setShowNewModal(false)} className="flex-1 btn-secondary">Cancel</button>
                   <button onClick={handleNewDoc} className="flex-1 btn-accent">Create Document</button>
