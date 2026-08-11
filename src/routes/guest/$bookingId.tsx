@@ -8,7 +8,7 @@ import { addMaintenanceRequest } from "~/lib/shared-store";
 import { queueEmail } from "~/lib/email";
 import { classifyMessage, generateAutoReply, generateStaffNotification, maintenanceCategoryLabel } from "~/lib/triage";
 
-const MANAGER_EMAIL = "manager@rentvue.com";
+const MANAGER_EMAIL = "manager@rentmore.com";
 const MANAGER_PHONE = "(555) 123-4567";
 const BRAND = "#0f3c52";
 const BASE_URL = "https://rentmorevrs.com";

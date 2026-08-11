@@ -25,10 +25,11 @@ type AuthContextType = {
 
 // Seed users as fallback when DB is unavailable — always verified
 export const seedUsers: (User & { password: string })[] = [
-  { id: "u1", email: "admin@rentvue.com", password: "password123", name: "Alex Morgan", role: "admin", emailVerified: true },
-  { id: "u2", email: "sarah@rentvue.com", password: "password123", name: "Sarah Chen", role: "agent", emailVerified: true },
-  { id: "u3", email: "mike@rentvue.com", password: "password123", name: "Mike Rivera", role: "agent", emailVerified: true },
-  { id: "u4", email: "jen@rentvue.com", password: "password123", name: "Jen Walsh", role: "agent", emailVerified: true },
+  { id: "u1", email: "admin@rentmore.com", password: "password123", name: "Alex Morgan", role: "admin", emailVerified: true },
+  { id: "u2", email: "sarah@rentmore.com", password: "password123", name: "Sarah Chen", role: "agent", emailVerified: true },
+  { id: "u3", email: "mike@rentmore.com", password: "password123", name: "Mike Rivera", role: "agent", emailVerified: true },
+  { id: "u4", email: "jen@rentmore.com", password: "password123", name: "Jen Walsh", role: "agent", emailVerified: true },
+  { id: "u-demo", email: "demo@rentmore.com", password: "password123", name: "RentMore Demo", role: "admin", emailVerified: true },
   { id: "u5", email: "robert@example.com", password: "password123", name: "Robert Chen", role: "owner", ownerId: "o1", emailVerified: true },
   { id: "u6", email: "maria@example.com", password: "password123", name: "Maria Santos", role: "owner", ownerId: "o2", emailVerified: true },
   { id: "u7", email: "james@example.com", password: "password123", name: "James Wilson", role: "owner", ownerId: "o3", emailVerified: true },
@@ -39,9 +40,10 @@ const AuthContext = createContext<AuthContextType | null>(null);
 // Owner and known-real accounts are exempt from email verification gating.
 const VERIFICATION_EXEMPT_EMAILS = new Set<string>([
   "shelbie@sheprealty.com",
-  "admin@rentvue.com",
-  "staff@rentvue.com",
-  "manager@rentvue.com",
+  "admin@rentmore.com",
+  "staff@rentmore.com",
+  "manager@rentmore.com",
+  "demo@rentmore.com",
 ]);
 
 // Try DB auth, fall back to seed

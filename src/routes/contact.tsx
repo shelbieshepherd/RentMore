@@ -8,7 +8,7 @@ export const Route = createFileRoute("/contact")({
 });
 
 // Change this to the property manager's email address
-const MANAGER_EMAIL = "manager@rentvue.com";
+const MANAGER_EMAIL = "manager@rentmore.com";
 
 function ContactPage() {
   const store = useStore();

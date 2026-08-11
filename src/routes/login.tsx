@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAuth, seedUsers } from "~/lib/auth";
+import { useAuth } from "~/lib/auth";
 import appCss from "~/styles/app.css?url";
 
 export const Route = createFileRoute("/login")({
@@ -58,7 +58,7 @@ function LoginPage() {
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="admin@rentvue.com"
+                placeholder="demo@rentmore.com"
                 required
                 autoFocus
               />
@@ -98,22 +98,6 @@ function LoginPage() {
                 Create an account
               </a>
             </p>
-            <p className="text-xs text-gray-400 text-center mb-3">Demo accounts (password: password123)</p>
-            <div className="space-y-1.5">
-              {seedUsers.map(u => (
-                <button
-                  key={u.id}
-                  onClick={() => { setEmail(u.email); setPassword(u.password); }}
-                  className="w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-gray-50 flex items-center justify-between group"
-                >
-                  <div>
-                    <span className="font-medium text-gray-700">{u.name}</span>
-                    <span className="text-gray-400 ml-2">{u.email}</span>
-                  </div>
-                  <span className={`badge text-[10px] ${u.role === "admin" ? "bg-purple-100 text-purple-800" : u.role === "owner" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>{u.role}</span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 
