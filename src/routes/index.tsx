@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "~/lib/layout";
 import {
@@ -94,7 +94,7 @@ function DashboardHome() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="stat-card">
+          <Link to="/properties" className="stat-card cursor-pointer hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-blue-50 p-3">
                 <span className="text-xl">🏠</span>
@@ -105,9 +105,9 @@ function DashboardHome() {
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-400">{occupiedProperties} occupied · {totalProperties - occupiedProperties} vacant</p>
-          </div>
+          </Link>
 
-          <div className="stat-card">
+          <Link to="/tenants" className="stat-card cursor-pointer hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-green-50 p-3">
                 <span className="text-xl">👥</span>
@@ -118,9 +118,9 @@ function DashboardHome() {
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-400">{totalTenants} tenants · {activeGuests} checked-in · {upcomingGuests} upcoming</p>
-          </div>
+          </Link>
 
-          <div className="stat-card">
+          <Link to="/payments" className="stat-card cursor-pointer hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-yellow-50 p-3">
                 <span className="text-xl">💳</span>
@@ -131,9 +131,9 @@ function DashboardHome() {
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-400">{pendingPayments} pending · {overduePayments} overdue</p>
-          </div>
+          </Link>
 
-          <div className="stat-card">
+          <Link to="/maintenance" className="stat-card cursor-pointer hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-red-50 p-3">
                 <span className="text-xl">🔧</span>
@@ -144,7 +144,7 @@ function DashboardHome() {
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-400">{maintenanceRequests.filter(m => m.status === "open").length} open · {maintenanceRequests.filter(m => m.status === "in-progress").length} in progress</p>
-          </div>
+          </Link>
         </div>
 
         {/* Arrivals & Departures */}
