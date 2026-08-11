@@ -107,7 +107,7 @@ export const queueVerificationEmail = createServerFn()
   .handler(({ data }) => {
     const fs = require("fs");
     const queuePath = "/home/team/shared/email-queue/email-queue.jsonl";
-    const baseUrl = "https://6cb00109005ce5add83d71c194d57d02.ctonew.app";
+    const baseUrl = "https://rentmorevrs.com";
     const verifyLink = `${baseUrl}/verify?token=${encodeURIComponent(data.token)}`;
     const entry = {
       id: `verify-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

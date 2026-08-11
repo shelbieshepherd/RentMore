@@ -185,10 +185,10 @@ export function guestEmailTemplate(params: {
   bookingId?: string;
 }): string {
   const contactLink = params.bookingId
-    ? `https://6cb00109005ce5add83d71c194d57d02.ctonew.app/contact?booking=${params.bookingId}`
-    : "https://6cb00109005ce5add83d71c194d57d02.ctonew.app/contact";
+    ? `https://rentmorevrs.com/contact?booking=${params.bookingId}`
+    : "https://rentmorevrs.com/contact";
   const portalLink = params.bookingId
-    ? `https://6cb00109005ce5add83d71c194d57d02.ctonew.app/guest/${params.bookingId}`
+    ? `https://rentmorevrs.com/guest/${params.bookingId}`
     : null;
   const content = `
     <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Hello ${escapeHtml(params.guestName)},</p>

@@ -73,7 +73,7 @@ export default function DocumentsPage() {
 
   function generateEmailHtml(doc: typeof signedDocuments[0] | null, message: string): string {
     if (!doc) return "";
-    const signingLink = `https://6cb00109005ce5add83d71c194d57d02.ctonew.app/sign/${doc.id}`;
+    const signingLink = `https://rentmorevrs.com/sign/${doc.id}`;
     const prop = properties.find(p => p.id === doc.propertyId);
     const fullContent = message ? `${message}\n\n---\n\n${doc.content}` : doc.content;
     return leaseEmailTemplate({

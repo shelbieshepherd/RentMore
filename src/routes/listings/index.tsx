@@ -53,7 +53,7 @@ function ListingsPage() {
       <header className="text-white py-4 px-4" style={{ backgroundColor: BRAND }}>
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link to="/listings" className="text-xl font-bold">🏘️ Eastman Premier Rentals</Link>
-          <a href="https://6cb00109005ce5add83d71c194d57d02.ctonew.app/contact" className="text-sm text-white/80 hover:text-white underline underline-offset-2">
+          <a href="https://rentmorevrs.com/contact" className="text-sm text-white/80 hover:text-white underline underline-offset-2">
             Contact
           </a>
         </div>

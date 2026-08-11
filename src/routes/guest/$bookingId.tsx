@@ -11,7 +11,7 @@ import { classifyMessage, generateAutoReply, generateStaffNotification, maintena
 const MANAGER_EMAIL = "manager@rentvue.com";
 const MANAGER_PHONE = "(555) 123-4567";
 const BRAND = "#0f3c52";
-const BASE_URL = "https://6cb00109005ce5add83d71c194d57d02.ctonew.app";
+const BASE_URL = "https://rentmorevrs.com";
 
 export const Route = createFileRoute("/guest/$bookingId")({
   component: GuestPortal,

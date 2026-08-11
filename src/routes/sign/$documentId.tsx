@@ -53,7 +53,7 @@ function SignPage() {
       // Auto-trigger owner notification email
       const ownerEmail = doc!.ownerEmail || owner?.email;
       if (ownerEmail) {
-        const signingLink = `https://6cb00109005ce5add83d71c194d57d02.ctonew.app/sign/${doc!.id}?role=owner`;
+        const signingLink = `https://rentmorevrs.com/sign/${doc!.id}?role=owner`;
         const html = leaseEmailTemplate({
           guestName: owner?.name || "Property Owner",
           propertyName: property?.name || "your property",

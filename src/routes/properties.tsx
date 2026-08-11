@@ -31,7 +31,7 @@ function PropertiesPage() {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [guideImages, setGuideImages] = useState<(string | any)[]>([]);
 
-  const SITE_URL = "https://6cb00109005ce5add83d71c194d57d02.ctonew.app";
+  const SITE_URL = "https://rentmorevrs.com";
 
   const copyOnboardLink = (propertyId: string) => {
     const link = `${SITE_URL}/onboard/${propertyId}`;

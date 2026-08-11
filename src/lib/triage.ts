@@ -240,7 +240,7 @@ export function generateStaffNotification(
 </table>
 <hr style="border:0;border-top:1px solid #e5e7eb;margin:16px 0;" />
 <p style="color:#374151;white-space:pre-wrap;">${message}</p>
-<p style="color:#6b7280;font-size:12px;">View in <a href="https://6cb00109005ce5add83d71c194d57d02.ctonew.app/maintenance" style="color:#0f3c52;">Maintenance Dashboard</a></p>
+<p style="color:#6b7280;font-size:12px;">View in <a href="https://rentmorevrs.com/maintenance" style="color:#0f3c52;">Maintenance Dashboard</a></p>
 </body></html>`,
       };
     }

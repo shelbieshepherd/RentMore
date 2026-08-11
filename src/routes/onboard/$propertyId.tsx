@@ -8,7 +8,7 @@ export const Route = createFileRoute("/onboard/$propertyId")({
   component: OnboardPage,
 });
 
-const SITE_URL = "https://6cb00109005ce5add83d71c194d57d02.ctonew.app";
+const SITE_URL = "https://rentmorevrs.com";
 const HOUSE_RULE_PRESETS = [
   "No smoking inside the property",
   "No pets allowed",
