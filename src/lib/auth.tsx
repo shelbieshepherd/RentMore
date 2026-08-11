@@ -100,32 +100,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Try session cookie
     const stored = typeof document !== "undefined" ? getCookie("rentvue_session") : null;
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Try seed first
-        const found = seedUsers.find(u => u.id === parsed.id);
-        if (found) {
-          const { password: _, ...safe } = found;
-          setUser(safe);
-        } else {
-          // Try DB restore
-          fetchDbUserById(parsed.id).then(dbUser => {
-            if (dbUser) {
-              setUser(dbUser);
-              // Also load team members and switch store company
-              if (dbUser.companyId) {
-                import("./shared-store").then(({ setCompanyId }) => {
-                  setCompanyId(dbUser.companyId!);
-                });
-                fetchDbUsersByCompany(dbUser.companyId).then(users => setDbUsers(users));
-              }
-            }
-          });
-        }
-      } catch { /* ignore */ }
+    if (!stored) {
+      // No session — nothing to restore; render immediately.
+      setInitialized(true);
+      return;
     }
-    setInitialized(true);
+    try {
+      const parsed = JSON.parse(stored);
+      // Try seed first
+      const found = seedUsers.find(u => u.id === parsed.id);
+      if (found) {
+        const { password: _, ...safe } = found;
+        setUser(safe);
+        setInitialized(true);
+        return;
+      }
+      // DB restore is async — hold rendering until it settles so the layout
+      // guard never sees a stale "not authenticated" state on a valid session.
+      // (Previously setInitialized(true) ran synchronously, so a direct load of
+      // a dashboard route with a valid DB session bounced /users → /login → /
+      // — the deep-link bounce defect.)
+      fetchDbUserById(parsed.id)
+        .then(dbUser => {
+          if (dbUser) {
+            setUser(dbUser);
+            // Also load team members and switch store company
+            if (dbUser.companyId) {
+              import("./shared-store").then(({ setCompanyId }) => {
+                setCompanyId(dbUser.companyId!);
+              });
+              fetchDbUsersByCompany(dbUser.companyId).then(users => setDbUsers(users));
+            }
+          }
+        })
+        .finally(() => setInitialized(true));
+    } catch { /* ignore */ setInitialized(true); }
   }, []);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
