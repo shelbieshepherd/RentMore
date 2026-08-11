@@ -84,7 +84,7 @@ export const registerCompany = createServerFn()
     const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const companyRows = await sql()`
       INSERT INTO companies (name, slug, subscription_tier)
-      VALUES (${data.name}, ${slug}, 'free')
+      VALUES (${data.name}, ${slug}, 'starter')
       RETURNING id
     `;
     const companyId = companyRows[0].id;

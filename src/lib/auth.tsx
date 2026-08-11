@@ -174,7 +174,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (e?.message === "EMAIL_TAKEN") {
         return { success: false, error: "An account with this email already exists." };
       }
-      return { success: false, error: "Database not connected. Real accounts need the database connected." };
+      // Surface the real error instead of masking it. A generic "Database not
+      // connected" message hid the actual cause (a CHECK-constraint failure on
+      // subscription_tier), which made signup look like it worked then silently
+      // created nothing. Show the real message so failures are diagnosable.
+      const detail =
+        typeof e?.message === "string" && e.message.trim().length > 0
+          ? e.message
+          : "Registration failed. Please try again.";
+      return { success: false, error: detail };
     }
   };
 
