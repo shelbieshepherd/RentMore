@@ -611,6 +611,186 @@ export const deleteLead = createServerFn()
     await sql()`DELETE FROM leads WHERE id = ${data.leadId}::uuid AND company_id = ${data.companyId}::uuid`;
   });
 
+// ── Vendors ──
+export const fetchVendors = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`SELECT * FROM vendor_contacts WHERE company_id = ${data.companyId}::uuid ORDER BY created_at DESC`;
+    return rows.map((v: any) => ({
+      id: v.id, name: v.name, company: v.company || "", email: v.email || "",
+      phone: v.phone || "", serviceTypes: (() => { try { return JSON.parse(v.service_types || "[]"); } catch { return []; } })(),
+      achInfo: { bankName: v.ach_bank_name || "", routingNumber: v.ach_routing_number || "", accountNumber: v.ach_account_number || "" },
+      mailingAddress: (v.mail_street || v.mail_city) ? { street: v.mail_street || "", city: v.mail_city || "", state: v.mail_state || "", zip: v.mail_zip || "" } : undefined,
+      notes: v.notes || "", createdAt: String(v.created_at || "").slice(0, 10),
+    }));
+  });
+
+export const insertVendor = createServerFn()
+  .validator((data: { companyId: string; name: string; company?: string; email?: string; phone?: string; serviceTypes?: string[]; achInfo?: { bankName?: string; routingNumber?: string; accountNumber?: string }; mailingAddress?: { street?: string; city?: string; state?: string; zip?: string }; notes?: string }) => data)
+  .handler(async ({ data }) => {
+    const { achInfo, mailingAddress } = data;
+    const rows = await sql()`
+      INSERT INTO vendor_contacts (company_id, name, contact_type, company, email, phone, service_types, ach_bank_name, ach_routing_number, ach_account_number, mail_street, mail_city, mail_state, mail_zip, notes)
+      VALUES (${data.companyId}::uuid, ${data.name}, 'general', ${data.company || ""}, ${data.email || ""}, ${data.phone || ""},
+        ${JSON.stringify(data.serviceTypes || [])}, ${achInfo?.bankName || ""}, ${achInfo?.routingNumber || ""}, ${achInfo?.accountNumber || ""},
+        ${mailingAddress?.street || ""}, ${mailingAddress?.city || ""}, ${mailingAddress?.state || ""}, ${mailingAddress?.zip || ""}, ${data.notes || ""})
+      RETURNING id
+    `;
+    return rows[0];
+  });
+
+export const updateVendorDB = createServerFn()
+  .validator((data: { companyId: string; vendorId: string; updates: Record<string, unknown> }) => data)
+  .handler(async ({ data }) => {
+    const { vendorId, updates } = data;
+    if (!Object.keys(updates).length) return;
+    const setClauses: string[] = [];
+    const vals: unknown[] = [];
+    let i = 1;
+    for (const [k, v] of Object.entries(updates)) {
+      setClauses.push(`${camelToSnake(k)} = $${i++}`);
+      vals.push(v);
+    }
+    vals.push(vendorId, data.companyId);
+    await sql().query(
+      `UPDATE vendor_contacts SET ${setClauses.join(", ")} WHERE id = $${i}::uuid AND company_id = $${i + 1}::uuid`,
+      vals
+    );
+  });
+
+export const deleteVendorDB = createServerFn()
+  .validator((data: { companyId: string; vendorId: string }) => data)
+  .handler(async ({ data }) => {
+    await sql()`DELETE FROM vendor_contacts WHERE id = ${data.vendorId}::uuid AND company_id = ${data.companyId}::uuid`;
+  });
+
+// ── Housekeeping ──
+export const fetchHousekeeping = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`SELECT * FROM housekeeping_tasks WHERE company_id = ${data.companyId}::uuid ORDER BY due_date ASC`;
+    return rows.map((h: any) => ({
+      id: h.id, propertyId: h.property_id, description: h.description, status: h.status,
+      priority: h.priority, assignedTo: h.assigned_to || "", dueDate: String(h.due_date || "").slice(0, 10),
+      window: h.time_window || "", verifiedBy: h.verified_by || undefined,
+    }));
+  });
+
+export const insertHousekeepingTask = createServerFn()
+  .validator((data: { companyId: string; propertyId: string; description: string; status?: string; priority?: string; assignedTo?: string; dueDate?: string; window?: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      INSERT INTO housekeeping_tasks (company_id, property_id, description, status, priority, assigned_to, due_date, time_window)
+      VALUES (${data.companyId}::uuid, ${data.propertyId}::uuid, ${data.description}, ${data.status || "pending"}, ${data.priority || "medium"},
+        ${data.assignedTo || null}, ${data.dueDate || null}, ${data.window || null})
+      RETURNING id
+    `;
+    return rows[0];
+  });
+
+export const updateHousekeepingTask = createServerFn()
+  .validator((data: { companyId: string; taskId: string; updates: Record<string, unknown> }) => data)
+  .handler(async ({ data }) => {
+    const { taskId, updates } = data;
+    if (!Object.keys(updates).length) return;
+    const setClauses: string[] = [];
+    const vals: unknown[] = [];
+    let i = 1;
+    for (const [k, v] of Object.entries(updates)) {
+      const col = camelToSnake(k);
+      setClauses.push(`${col} = $${i++}`);
+      vals.push(col === "assigned_to" && !v ? null : v);
+    }
+    vals.push(taskId, data.companyId);
+    await sql().query(
+      `UPDATE housekeeping_tasks SET ${setClauses.join(", ")} WHERE id = $${i}::uuid AND company_id = $${i + 1}::uuid`,
+      vals
+    );
+  });
+
+export const deleteHousekeepingTask = createServerFn()
+  .validator((data: { companyId: string; taskId: string }) => data)
+  .handler(async ({ data }) => {
+    await sql()`DELETE FROM housekeeping_tasks WHERE id = ${data.taskId}::uuid AND company_id = ${data.companyId}::uuid`;
+  });
+
+// ── Calendar blocks ──
+export const fetchCalendarBlocks = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`SELECT * FROM calendar_blocks WHERE company_id = ${data.companyId}::uuid ORDER BY start_date ASC`;
+    return rows.map((b: any) => ({
+      id: b.id, propertyId: b.property_id, type: b.type, startDate: String(b.start_date).slice(0, 10),
+      endDate: String(b.end_date).slice(0, 10), title: b.title || "",
+    }));
+  });
+
+export const insertCalendarBlock = createServerFn()
+  .validator((data: { companyId: string; propertyId: string; startDate: string; endDate: string; type?: string; title?: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      INSERT INTO calendar_blocks (company_id, property_id, start_date, end_date, type, title)
+      VALUES (${data.companyId}::uuid, ${data.propertyId}::uuid, ${data.startDate}, ${data.endDate}, ${data.type || "blocked"}, ${data.title || null})
+      RETURNING id
+    `;
+    return rows[0];
+  });
+
+export const deleteCalendarBlock = createServerFn()
+  .validator((data: { companyId: string; blockId: string }) => data)
+  .handler(async ({ data }) => {
+    await sql()`DELETE FROM calendar_blocks WHERE id = ${data.blockId}::uuid AND company_id = ${data.companyId}::uuid`;
+  });
+
+// ── Documents ──
+export const fetchDocuments = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`SELECT * FROM documents WHERE company_id = ${data.companyId}::uuid ORDER BY created_at DESC`;
+    return rows.map((d: any) => ({
+      id: d.id, propertyId: d.property_id || undefined, type: d.type || "lease", title: d.title,
+      status: d.status, recipientName: d.recipient_name || "", recipientEmail: d.recipient_email || "",
+      content: d.content || "", createdAt: String(d.created_at || "").slice(0, 10),
+    }));
+  });
+
+export const insertDocument = createServerFn()
+  .validator((data: { companyId: string; propertyId?: string; title: string; content?: string; type?: string; status?: string; recipientName?: string; recipientEmail?: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      INSERT INTO documents (company_id, property_id, title, content, type, status, recipient_name, recipient_email)
+      VALUES (${data.companyId}::uuid, ${data.propertyId ? data.propertyId + "::uuid" : null}, ${data.title}, ${data.content || null},
+        ${data.type || "lease"}, ${data.status || "draft"}, ${data.recipientName || null}, ${data.recipientEmail || null})
+      RETURNING id
+    `;
+    return rows[0];
+  });
+
+export const updateDocumentDB = createServerFn()
+  .validator((data: { companyId: string; documentId: string; updates: Record<string, unknown> }) => data)
+  .handler(async ({ data }) => {
+    const { documentId, updates } = data;
+    if (!Object.keys(updates).length) return;
+    const setClauses: string[] = [];
+    const vals: unknown[] = [];
+    let i = 1;
+    for (const [k, v] of Object.entries(updates)) {
+      setClauses.push(`${camelToSnake(k)} = $${i++}`);
+      vals.push(v);
+    }
+    vals.push(documentId, data.companyId);
+    await sql().query(
+      `UPDATE documents SET ${setClauses.join(", ")} WHERE id = $${i}::uuid AND company_id = $${i + 1}::uuid`,
+      vals
+    );
+  });
+
+export const deleteDocumentDB = createServerFn()
+  .validator((data: { companyId: string; documentId: string }) => data)
+  .handler(async ({ data }) => {
+    await sql()`DELETE FROM documents WHERE id = ${data.documentId}::uuid AND company_id = ${data.companyId}::uuid`;
+  });
+
 // ── Helpers ──
 function camelToSnake(str: string): string {
   return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
