@@ -10,7 +10,6 @@ import { useStore } from "./store";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: "📊" },
-  { href: "/listings", label: "View Listings", icon: "🖼️" },
   { href: "/assistant", label: "Assistant", icon: "🧠" },
   { href: "/calendar", label: "Calendar", icon: "📅" },
   { href: "/plan", label: "Plan", icon: "📋" },
