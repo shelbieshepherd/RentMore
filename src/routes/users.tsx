@@ -62,7 +62,9 @@ function UsersPage() {
       if (e?.message === "EMAIL_TAKEN") {
         setAddError("A user with this email already exists in your company.");
       } else {
-        setAddError("Failed to add user. Make sure the database is connected.");
+        // Surface the real error (constraint/driver failures) instead of a
+        // generic message that hides e.g. a role CHECK violation.
+        setAddError(e?.message || "Failed to add user. Make sure the database is connected.");
       }
     }
     setAdding(false);
