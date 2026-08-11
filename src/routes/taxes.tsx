@@ -83,7 +83,7 @@ function TaxesPage() {
     const blob = new Blob(["Owner,TIN,Gross,Commissions,Maintenance,Net,1099-Eligible\n" + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `rentvue-1099-${selectedYear}.csv`;
+    a.href = url; a.download = `rentmore-1099-${selectedYear}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
 
@@ -166,7 +166,7 @@ function TaxesPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                 <div>
                   <p className="text-xs text-gray-400 uppercase tracking-wider">PAYER</p>
-                  <p className="text-sm font-medium mt-1">RentVue Property Management</p>
+                  <p className="text-sm font-medium mt-1">RentMore Property Management</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400 uppercase tracking-wider">RECIPIENT</p>

@@ -213,7 +213,7 @@ function OwnerPayoutReport({
           th { text-align: left; padding: 8px; background: #f3f4f6; border-bottom: 2px solid #d1d5db; }
         </style></head>
         <body>
-          <h1>RentVue — Owner Payout Report</h1>
+          <h1>RentMore — Owner Payout Report</h1>
           <p class="date">${from} to ${to}</p>
           <table>
             <thead><tr>

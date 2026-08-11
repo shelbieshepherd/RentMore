@@ -42,7 +42,7 @@ function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="text-4xl mb-2">🏘️</div>
-          <h1 className="text-2xl font-bold" style={{ color: "#0f3c52" }}>RentVue</h1>
+          <h1 className="text-2xl font-bold" style={{ color: "#0f3c52" }}>RentMore</h1>
           <p className="text-sm text-gray-500 mt-1">Property Management Dashboard</p>
         </div>
 
@@ -93,7 +93,7 @@ function LoginPage() {
 
           <div className="mt-6 pt-6 border-t border-gray-100">
             <p className="text-sm text-center mb-3">
-              <span className="text-gray-500">New to RentVue? </span>
+              <span className="text-gray-500">New to RentMore? </span>
               <a href="/signup" className="font-medium" style={{ color: "#0f3c52" }}>
                 Create an account
               </a>

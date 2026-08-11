@@ -74,7 +74,7 @@ ${bookingRef ? `<tr><td style="color:#6b7280;font-size:13px;">Booking</td><td st
 <div style="border-top:1px solid #e5e7eb;padding-top:16px;color:#374151;font-size:14px;line-height:1.7;white-space:pre-wrap;">${message}</div>
 </td></tr>
 <tr><td style="background:#f9fafb;padding:14px 32px;border-top:1px solid #e5e7eb;">
-<p style="margin:0;color:#9ca3af;font-size:11px;text-align:center;">Powered by <span style="color:#6b7280;">RentVue</span></p>
+<p style="margin:0;color:#9ca3af;font-size:11px;text-align:center;">Powered by <span style="color:#6b7280;">RentMore</span></p>
 </td></tr>
 </table>
 </td></tr>
@@ -105,7 +105,7 @@ ${bookingRef ? `<tr><td style="color:#6b7280;font-size:13px;">Booking</td><td st
           <div className="px-8 py-6" style={{ backgroundColor: "#0f3c52" }}>
             <div className="text-3xl mb-1">🏘️</div>
             <h1 className="text-xl font-bold text-white">Eastman Premier Rentals</h1>
-            <p className="text-sm text-white/70">Contact Us &middot; Powered by RentVue</p>
+            <p className="text-sm text-white/70">Contact Us &middot; Powered by RentMore</p>
           </div>
 
           <div className="p-8">
@@ -202,7 +202,7 @@ ${bookingRef ? `<tr><td style="color:#6b7280;font-size:13px;">Booking</td><td st
           {/* Footer */}
           <div className="bg-gray-50 border-t border-gray-100 px-8 py-3 text-center">
             <p className="text-xs text-gray-400">
-              Powered by <span className="text-gray-500">RentVue</span>
+              Powered by <span className="text-gray-500">RentMore</span>
             </p>
           </div>
         </div>

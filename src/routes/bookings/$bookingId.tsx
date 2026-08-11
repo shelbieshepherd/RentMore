@@ -556,7 +556,7 @@ function BookingDetailPage() {
 
             {/* Quick Actions */}
             <div className="flex gap-3 flex-wrap">
-              <button onClick={() => { setEmailSubject(`Your stay at ${property?.name || "RentVue"}`); setEmailBody(`Dear ${booking.guestName},\n\nThank you for your reservation.\n\nCheck-in: ${formatDate(booking.startDate)}\nCheck-out: ${formatDate(booking.endDate)}\n\nBest regards,\nRentVue Team`); setShowSendEmail(true); }} className="btn-secondary text-xs py-2">✉️ Send Email</button>
+              <button onClick={() => { setEmailSubject(`Your stay at ${property?.name || "RentMore"}`); setEmailBody(`Dear ${booking.guestName},\n\nThank you for your reservation.\n\nCheck-in: ${formatDate(booking.startDate)}\nCheck-out: ${formatDate(booking.endDate)}\n\nBest regards,\nRentMore Team`); setShowSendEmail(true); }} className="btn-secondary text-xs py-2">✉️ Send Email</button>
               <button onClick={() => setShowCancelConfirm(true)} className="btn-secondary text-xs py-2 text-red-600 border-red-200 hover:bg-red-50">Cancel Booking</button>
             </div>
 

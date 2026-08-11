@@ -85,7 +85,7 @@ function BookPage() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
           <span className="text-2xl">🏘️</span>
           <div>
-            <h1 className="text-lg font-bold" style={{ color: "#0f3c52" }}>RentVue</h1>
+            <h1 className="text-lg font-bold" style={{ color: "#0f3c52" }}>RentMore</h1>
             <p className="text-xs text-gray-500">Vacation Rental Booking</p>
           </div>
           <div className="ml-auto text-xs bg-gray-100 px-3 py-1 rounded-full">
@@ -289,7 +289,7 @@ function BookPage() {
         )}
 
         <footer className="text-center mt-8 text-xs text-gray-400">
-          <p>Powered by <span className="font-medium" style={{ color: "#0f3c52" }}>RentVue</span> Property Management</p>
+          <p>Powered by <span className="font-medium" style={{ color: "#0f3c52" }}>RentMore</span> Property Management</p>
         </footer>
       </main>
     </div>

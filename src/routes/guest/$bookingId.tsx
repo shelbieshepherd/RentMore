@@ -178,7 +178,7 @@ function GuestPortal() {
         {/* ── Footer ── */}
         <footer className="text-center py-6">
           <p className="text-xs text-gray-400">
-            Powered by <span className="text-gray-500 font-medium">RentVue</span> · Guest Portal
+            Powered by <span className="text-gray-500 font-medium">RentMore</span> · Guest Portal
           </p>
           <p className="text-xs text-gray-400 mt-1">
             <a href={`${BASE_URL}/contact?booking=${booking.id}`} className="underline">Contact Manager</a>

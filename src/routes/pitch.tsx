@@ -11,7 +11,7 @@ function PitchPage() {
       <nav className="border-b border-gray-100 bg-white/95 sticky top-0 z-50 backdrop-blur">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2 no-underline">
-            <span className="text-xl font-bold tracking-tight" style={{ color: "#0f3c52" }}>RentVue</span>
+            <span className="text-xl font-bold tracking-tight" style={{ color: "#0f3c52" }}>RentMore</span>
           </a>
           <div className="flex items-center gap-4">
             <a href="/login" className="text-sm text-gray-600 hover:text-gray-900">Log in</a>
@@ -236,14 +236,14 @@ function PitchPage() {
         <div className="max-w-3xl mx-auto px-6 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Early stage, deeply focused</h2>
           <p className="text-gray-600 leading-relaxed">
-            RentVue is a young product built by a working property manager who lives the same problems you do. We're focused on doing a few things well — mixed-portfolio management, owner payouts, and compliance reporting — rather than building everything for everyone. If that sounds like what you need, we'd love to show you around.
+            RentMore is a young product built by a working property manager who lives the same problems you do. We're focused on doing a few things well — mixed-portfolio management, owner payouts, and compliance reporting — rather than building everything for everyone. If that sounds like what you need, we'd love to show you around.
           </p>
           <a
             href="/signup"
             className="inline-block mt-8 px-8 py-3.5 rounded-lg text-base font-semibold text-white hover:opacity-90 transition-colors"
             style={{ backgroundColor: "#0f3c52" }}
           >
-            Try RentVue free
+            Try RentMore free
           </a>
         </div>
       </section>
@@ -251,7 +251,7 @@ function PitchPage() {
       {/* ── Footer ── */}
       <footer className="border-t border-gray-100 py-8">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="text-sm text-gray-400">© {new Date().getFullYear()} RentVue. Property management software for short-term and long-term rentals.</span>
+          <span className="text-sm text-gray-400">© {new Date().getFullYear()} RentMore. Property management software for short-term and long-term rentals.</span>
           <div className="flex items-center gap-6">
             <a href="/login" className="text-sm text-gray-400 hover:text-gray-600">Log in</a>
             <a href="/signup" className="text-sm text-gray-400 hover:text-gray-600">Sign up</a>

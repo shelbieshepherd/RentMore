@@ -63,7 +63,7 @@ function AccountingPage() {
     const blob = new Blob([headers + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `rentvue-ledger-${rangeDates.start}-to-${rangeDates.end}.csv`;
+    a.href = url; a.download = `rentmore-ledger-${rangeDates.start}-to-${rangeDates.end}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
 

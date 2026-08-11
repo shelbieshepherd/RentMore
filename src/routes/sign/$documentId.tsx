@@ -100,7 +100,7 @@ function SignPage() {
             <div className="text-3xl mb-1">🏘️</div>
             <h1 className="text-xl font-bold text-white">Eastman Premier Rentals</h1>
             <p className="text-sm text-white/70">
-              {isOwner ? "Owner Countersignature" : "Secure e-signature"} &middot; Powered by RentVue
+              {isOwner ? "Owner Countersignature" : "Secure e-signature"} &middot; Powered by RentMore
             </p>
           </div>
 

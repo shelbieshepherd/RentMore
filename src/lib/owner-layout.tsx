@@ -21,7 +21,7 @@ export function OwnerLayout({ children, currentPath }: { children: ReactNode; cu
       {/* Sidebar */}
       <aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h1 className="text-lg font-bold" style={{ color: "#0f3c52" }}>RentVue</h1>
+          <h1 className="text-lg font-bold" style={{ color: "#0f3c52" }}>RentMore</h1>
           <p className="text-[10px] text-gray-400 mt-0.5">Owner Portal</p>
         </div>
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">

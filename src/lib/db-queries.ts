@@ -114,8 +114,8 @@ export const queueVerificationEmail = createServerFn()
       queuedAt: new Date().toISOString(),
       to: data.email,
       toName: "",
-      subject: "Verify your RentVue account",
-      html: `<p>Welcome to RentVue!</p><p>Please verify your email address by clicking the link below:</p><p><a href="${verifyLink}">${verifyLink}</a></p><p>This link expires in 24 hours.</p><p>If you didn't create a RentVue account, you can ignore this email.</p>`,
+      subject: "Verify your RentMore account",
+      html: `<p>Welcome to RentMore!</p><p>Please verify your email address by clicking the link below:</p><p><a href="${verifyLink}">${verifyLink}</a></p><p>This link expires in 24 hours.</p><p>If you didn't create a RentMore account, you can ignore this email.</p>`,
     };
     try {
       fs.appendFileSync(queuePath, JSON.stringify(entry) + "\n");

@@ -643,7 +643,7 @@ export const propertyGuides: PropertyGuide[] = [
       { name: "Santa Monica Pier", type: "Attraction", description: "Iconic pier with amusement park, aquarium, and dining. 10 min walk.", address: "200 Santa Monica Pier" },
       { name: "Trader Joe's", type: "Grocery", description: "Nearest grocery store — organic produce and great wine selection.", address: "3212 Pico Blvd" },
       { name: "Third Street Promenade", type: "Shopping", description: "Pedestrian-only shopping district with street performers and cafes.", address: "1351 3rd Street Promenade" },
-      { name: "Perry's Café", type: "Bike Rental", description: "Rent bikes and cruise the beach path. RentVue guests get 10% off.", address: "2400 Ocean Front Walk" },
+      { name: "Perry's Café", type: "Bike Rental", description: "Rent bikes and cruise the beach path. RentMore guests get 10% off.", address: "2400 Ocean Front Walk" },
     ],
     checkoutInstructions: [
       "Check-out is by 11:00 AM sharp — late checkouts incur a $150 fee.",

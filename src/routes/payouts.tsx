@@ -75,7 +75,7 @@ function PayoutsPage() {
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `rentvue-payouts-${dates.start}.csv`;
+    a.href = url; a.download = `rentmore-payouts-${dates.start}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
 

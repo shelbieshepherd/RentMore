@@ -71,7 +71,7 @@ function emailWrapper(title: string, content: string): string {
           <tr>
             <td style="background-color:#f9fafb;padding:16px 40px;border-top:1px solid #e5e7eb;">
               <p style="margin:0;color:#9ca3af;font-size:11px;text-align:center;">
-                Powered by <span style="color:#6b7280;">RentVue</span>
+                Powered by <span style="color:#6b7280;">RentMore</span>
               </p>
             </td>
           </tr>

@@ -94,7 +94,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
         <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
           <span className="text-2xl">🏘️</span>
           <div>
-            <h1 className="text-lg font-bold text-white">RentVue</h1>
+            <h1 className="text-lg font-bold text-white">RentMore</h1>
             <p className="text-xs text-gray-300">Property Management</p>
           </div>
         </div>
@@ -120,7 +120,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
 
         {/* Footer */}
         <div className="border-t border-white/10 px-6 py-4">
-          <p className="text-xs text-gray-400">RentVue v1.0.0</p>
+          <p className="text-xs text-gray-400">RentMore v1.0.0</p>
         </div>
       </aside>
 

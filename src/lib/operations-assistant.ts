@@ -489,7 +489,7 @@ export function parseAssistantQuery(query: string, store: StoreState): string {
   // "How do I pay an owner?" / "owner payout" / "pay out"
   if (/payout|pay.*owner|owner.*pay|payment.*owner|owner.*payment|how.*do.*i.*pay/i.test(q)) {
     return `💰 **Owner Payouts**\n\n` +
-      `RentVue calculates owner payouts automatically based on bookings:\n\n` +
+      `RentMore calculates owner payouts automatically based on bookings:\n\n` +
       `**Short-term rentals:**\n` +
       `- Booking total − cleaning fee − linen fee − commission = **owner payout**\n` +
       `- Commission rate is configurable per booking (typically 15-25%)\n\n` +

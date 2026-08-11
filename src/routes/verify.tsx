@@ -66,7 +66,7 @@ function VerifyPage() {
     <div className="min-h-dvh flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50 px-4">
       <div className="w-full max-w-md text-center">
         <div className="text-4xl mb-2">🏘️</div>
-        <h1 className="text-2xl font-bold mb-2" style={{ color: "#0f3c52" }}>RentVue</h1>
+        <h1 className="text-2xl font-bold mb-2" style={{ color: "#0f3c52" }}>RentMore</h1>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mt-6">
           {state === "loading" && (
             <>
