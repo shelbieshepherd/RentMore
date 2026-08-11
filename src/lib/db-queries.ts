@@ -551,11 +551,70 @@ export const deletePaymentMethod = createServerFn()
     `;
   });
 
+// ── Leads ──
+export const fetchLeads = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      SELECT id, company_id, name, email, phone, source, stage,
+             property_id, value, notes, date, created_at
+      FROM leads WHERE company_id = ${data.companyId}::uuid
+      ORDER BY date DESC NULLS LAST, created_at DESC
+    `;
+    return rows.map(jsonSafe);
+  });
+
+export const insertLead = createServerFn()
+  .validator((data: {
+    companyId: string; name: string; email?: string; phone?: string; source?: string;
+    stage: string; propertyId?: string; value?: number; notes?: string; date?: string;
+  }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      INSERT INTO leads (company_id, name, email, phone, source, stage,
+                         property_id, value, notes, date)
+      VALUES (${data.companyId}::uuid, ${data.name}, ${data.email || null}, ${data.phone || null},
+        ${data.source || null}, ${data.stage}, ${uuidOrNull(data.propertyId)}::uuid,
+        ${data.value || 0}, ${data.notes || null},
+        ${data.date || new Date().toISOString().slice(0, 10)}::date)
+      RETURNING id
+    `;
+    return rows[0];
+  });
+
+export const updateLeadDB = createServerFn()
+  .validator((data: { companyId: string; leadId: string; updates: Record<string, unknown> }) => data)
+  .handler(async ({ data }) => {
+    const { companyId, leadId, updates } = data;
+    if (!Object.keys(updates).length) return;
+    const setClauses: string[] = [];
+    const vals: unknown[] = [];
+    let i = 1;
+    for (const [k, v] of Object.entries(updates)) {
+      const col = camelToSnake(k);
+      setClauses.push(`${col} = $${i++}`);
+      // property_id is a FK — blank strings must become NULL
+      vals.push(col === "property_id" ? uuidOrNull(v as string) : v);
+    }
+    vals.push(leadId, companyId);
+    // NOTE: use sql().query() with positional $n placeholders — the neon driver's
+    // tagged-template mode rejects .append(unsafe(...)) with $n placeholders.
+    await sql().query(
+      `UPDATE leads SET ${setClauses.join(", ")} WHERE id = $${i}::uuid AND company_id = $${i + 1}::uuid`,
+      vals
+    );
+  });
+
+export const deleteLead = createServerFn()
+  .validator((data: { companyId: string; leadId: string }) => data)
+  .handler(async ({ data }) => {
+    await sql()`DELETE FROM leads WHERE id = ${data.leadId}::uuid AND company_id = ${data.companyId}::uuid`;
+  });
+
 // ── Helpers ──
 function camelToSnake(str: string): string {
   return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
-
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function uuidOrNull(x: string | null | undefined): string | null {
   if (!x) return null;
