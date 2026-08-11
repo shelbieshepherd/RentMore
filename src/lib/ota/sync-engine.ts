@@ -92,7 +92,7 @@ export async function syncConnection(connectionId: string): Promise<{ success: b
         });
         linkOtaReservation(res.otaReservationId, "linked"); // mark as processed
       }
-      addSyncLog(connectionId, conn.provider, "import-bookings", "success", `Imported ${existingLinked.length} bookings into RentVue`);
+      addSyncLog(connectionId, conn.provider, "import-bookings", "success", `Imported ${existingLinked.length} bookings into RentMore`);
     }
 
     updateConnection(connectionId, { status: "connected", lastSyncedAt: new Date().toISOString(), errorMessage: null });
