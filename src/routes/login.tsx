@@ -101,11 +101,6 @@ function LoginPage() {
           </div>
         </div>
 
-        <p className="text-center mt-6">
-          <a href="/book" className="text-sm text-gray-400 hover:text-gray-600">
-            ← Browse properties to book
-          </a>
-        </p>
       </div>
     </div>
   );
