@@ -102,25 +102,64 @@ export const registerCompany = createServerFn()
     return { ...userRows[0], verifyToken: token };
   });
 
-export const queueVerificationEmail = createServerFn()
-  .validator((data: { email: string; token: string }) => data)
-  .handler(({ data }) => {
+// ── Shared email sender (Resend when key is set, file-queue fallback for local dev) ──
+
+async function sendViaResendOrQueue(entry: { to: string; toName: string; subject: string; html: string }): Promise<{ success: boolean; error?: string }> {
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "RentMore <noreply@rentmorevrs.com>",
+          to: [entry.to],
+          subject: entry.subject,
+          html: entry.html,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        return { success: false, error: `Resend HTTP ${res.status}: ${body}` };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || "Resend fetch failed" };
+    }
+  }
+  // File-queue fallback (local dev / no API key)
+  try {
     const fs = require("fs");
     const queuePath = "/home/team/shared/email-queue/email-queue.jsonl";
+    const line = JSON.stringify({
+      id: `email-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      queuedAt: new Date().toISOString(),
+      ...entry,
+    }) + "\n";
+    fs.appendFileSync(queuePath, line);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Queue write failed" };
+  }
+}
+
+export const sendEmail = createServerFn()
+  .validator((data: { to: string; toName: string; subject: string; html: string }) => data)
+  .handler(async ({ data }) => sendViaResendOrQueue(data));
+
+export const queueVerificationEmail = createServerFn()
+  .validator((data: { email: string; token: string }) => data)
+  .handler(async ({ data }) => {
     const baseUrl = "https://rentmorevrs.com";
     const verifyLink = `${baseUrl}/verify?token=${encodeURIComponent(data.token)}`;
-    const entry = {
-      id: `verify-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      queuedAt: new Date().toISOString(),
+    return sendViaResendOrQueue({
       to: data.email,
       toName: "",
       subject: "Verify your RentMore account",
       html: `<p>Welcome to RentMore!</p><p>Please verify your email address by clicking the link below:</p><p><a href="${verifyLink}">${verifyLink}</a></p><p>This link expires in 24 hours.</p><p>If you didn't create a RentMore account, you can ignore this email.</p>`,
-    };
-    try {
-      fs.appendFileSync(queuePath, JSON.stringify(entry) + "\n");
-    } catch { /* queue write failure is non-fatal */ }
-    return { success: true };
+    });
   });
 
 export const insertUser = createServerFn()

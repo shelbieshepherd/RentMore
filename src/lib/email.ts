@@ -1,7 +1,7 @@
 /**
- * Email templates for Eastman Premier Rentals.
+ * Email templates for RentMore.
  * Generates PDF-like HTML for lease agreements, rental docs, and guest communication.
- * Emails are queued via POST to /api/send-email — the serve.ts handler writes them to a shared queue file.
+ * Emails are sent via the sendEmail server fn (Resend when RESEND_API_KEY is set, file-queue fallback otherwise).
  */
 
 const BRAND_COLOR = "#0f3c52";
@@ -13,33 +13,20 @@ export interface EmailPayload {
   html: string;
 }
 
-/** POST email payload to /api/send-email — serve.ts writes it to the shared queue. */
+/** Send email via the sendEmail server fn (Resend when key is set, file-queue fallback). */
 export async function queueEmail(payload: EmailPayload): Promise<{ success: boolean; error?: string }> {
   try {
-    const resp = await fetch("/api/send-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      let errText = "";
-      try {
-        errText = await resp.text();
-      } catch {
-        errText = `HTTP ${resp.status} ${resp.statusText}`;
-      }
-      console.error("[RentVue] Queue request failed:", { status: resp.status, statusText: resp.statusText, body: errText });
-      return { success: false, error: errText || `HTTP ${resp.status}` };
-    }
-    return { success: true };
+    const { sendEmail } = await import("./db-queries");
+    const result = await sendEmail({ data: payload });
+    return result;
   } catch (err: any) {
     const msg = err?.message || String(err);
-    console.error("[RentVue] Queue fetch error:", { message: msg, error: err });
-    return { success: false, error: msg || "Network error — could not reach the server." };
+    console.error("[RentMore] sendEmail failed:", { message: msg });
+    return { success: false, error: msg || "sendEmail call failed" };
   }
 }
 
-/** Base wrapper for all Eastman Premier Rentals HTML emails */
+/** Base wrapper for all RentMore HTML emails */
 function emailWrapper(title: string, content: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -57,7 +44,7 @@ function emailWrapper(title: string, content: string): string {
           <tr>
             <td style="background-color:${BRAND_COLOR};padding:28px 40px;text-align:center;">
               <p style="margin:0;font-size:28px;">🏘️</p>
-              <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">Eastman Premier Rentals</h1>
+              <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">RentMore</h1>
               <p style="margin:6px 0 0;color:rgba(255,255,255,0.75);font-size:13px;">${title}</p>
             </td>
           </tr>
@@ -210,13 +197,13 @@ export function guestEmailTemplate(params: {
       </tr>
     </table>` : ""}
     <p style="margin:24px 0 0;color:#6b7280;font-size:12px;">
-      — Eastman Premier Rentals
+      — RentMore
     </p>
     <p style="margin:8px 0 0;color:#9ca3af;font-size:11px;">
       📩 <a href="${contactLink}" style="color:#0f3c52;">Contact us</a> if you have any questions.
     </p>`;
 
-  return emailWrapper("Message from Eastman Premier Rentals", content);
+  return emailWrapper("Message from RentMore", content);
 }
 
 function escapeHtml(str: string): string {
