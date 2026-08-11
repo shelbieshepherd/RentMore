@@ -178,6 +178,26 @@ export const insertUser = createServerFn()
         ${data.name}, ${data.role})
       RETURNING id, company_id, email, name, role
     `;
+    // Auto-send a welcome email when an admin adds a user (fire-and-forget —
+    // email failure must never fail user creation). Uses the Resend/queue helper
+    // directly, NOT the sendEmail server fn (server-fn-inside-server-fn hazard).
+    // Never includes the password — the new user logs in with credentials their
+    // admin sets up; this email only tells them the account exists and how to log in.
+    (async () => {
+      try {
+        const companyRows = await sql()`
+          SELECT name FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1
+        `;
+        const companyName = companyRows[0]?.name || "your company";
+        const roleLabel = data.role.charAt(0).toUpperCase() + data.role.slice(1);
+        await sendViaResendOrQueue({
+          to: data.email,
+          toName: data.name,
+          subject: `You've been added to ${companyName} as ${roleLabel}`,
+          html: `<p>Hi ${data.name},</p><p>You've been added to <strong>${companyName}</strong> on RentMore as <strong>${roleLabel}</strong>.</p><p>Log in at <a href="https://rentmorevrs.com/login">https://rentmorevrs.com/login</a> to get started.</p><p>— The RentMore team</p>`,
+        });
+      } catch { /* email is best-effort only */ }
+    })();
     return rows[0];
   });
 
