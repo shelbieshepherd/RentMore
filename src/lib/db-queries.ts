@@ -203,6 +203,48 @@ export const insertUser = createServerFn()
     } catch { /* email is best-effort only */ }
     return rows[0];
   });
+export const updateUser = createServerFn()
+  .validator((data: {
+    companyId: string; id: string;
+    name?: string; email?: string; role?: string; password?: string;
+  }) => data)
+  .handler(async ({ data }) => {
+    if (data.email) {
+      const dup = await sql()`
+        SELECT id FROM users
+        WHERE company_id = ${data.companyId}::uuid AND email = ${data.email} AND id <> ${data.id}::uuid
+        LIMIT 1
+      `;
+      if (dup.length > 0) throw new Error("EMAIL_TAKEN");
+    }
+    const rows = await sql()`
+      UPDATE users SET
+        name = COALESCE(${data.name ?? null}, name),
+        email = COALESCE(${data.email ?? null}, email),
+        role = COALESCE(${data.role ?? null}, role),
+        password_hash = CASE
+          WHEN ${data.password ?? null} IS NOT NULL THEN crypt(${data.password ?? ""}, gen_salt('bf'))
+          ELSE password_hash
+        END
+      WHERE id = ${data.id}::uuid AND company_id = ${data.companyId}::uuid
+      RETURNING id, company_id, email, name, role
+    `;
+    if (rows.length === 0) throw new Error("USER_NOT_FOUND");
+    return rows[0];
+  });
+export const deleteUser = createServerFn()
+  .validator((data: { companyId: string; id: string }) => data)
+  .handler(async ({ data }) => {
+    // Hard delete: no FK constraints reference users (verified in schema.sql —
+    // maintenance/leads don't FK to users), so a physical delete is safe.
+    // Scoped to company_id so one tenant can never delete another's users.
+    const rows = await sql()`
+      DELETE FROM users WHERE id = ${data.id}::uuid AND company_id = ${data.companyId}::uuid
+      RETURNING id
+    `;
+    if (rows.length === 0) throw new Error("USER_NOT_FOUND");
+    return { success: true };
+  });
 
 // ── Email Verification ──
 export const verifyEmail = createServerFn()

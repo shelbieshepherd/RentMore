@@ -24,6 +24,13 @@ function UsersPage() {
   const [newRole, setNewRole] = useState<UserRole>("agent");
   const [addError, setAddError] = useState("");
   const [adding, setAdding] = useState(false);
+  // Edit/delete state
+  const [editingUser, setEditingUser] = useState<(typeof allUsers)[number] | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<(typeof allUsers)[number] | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const isEditing = editingUser !== null;
+  const adminCount = allUsers.filter(u => u.role === "admin").length;
 
   if (!isAdmin) {
     return (
@@ -70,6 +77,64 @@ function UsersPage() {
     setAdding(false);
   };
 
+  const openEditUser = (u: (typeof allUsers)[number]) => {
+    setEditingUser(u);
+    setNewName(u.name);
+    setNewEmail(u.email);
+    setNewRole(u.role as UserRole);
+    setNewPassword("");
+    setAddError("");
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingUser(null);
+    setAddError("");
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError("");
+    if (!isDbUser || !user?.companyId || !editingUser) return;
+    setAdding(true);
+    try {
+      const { updateUser } = await import("~/lib/db-queries");
+      await updateUser({ data: {
+        companyId: user.companyId,
+        id: editingUser.id,
+        name: newName,
+        email: newEmail,
+        role: newRole,
+        password: newPassword || undefined, // blank = keep current password
+      }});
+      closeModal();
+      window.location.reload();
+    } catch (e: any) {
+      if (e?.message === "EMAIL_TAKEN") {
+        setAddError("A user with this email already exists in your company.");
+      } else {
+        setAddError(e?.message || "Failed to update user.");
+      }
+    }
+    setAdding(false);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteTarget || !isDbUser || !user?.companyId) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const { deleteUser } = await import("~/lib/db-queries");
+      await deleteUser({ data: { companyId: user.companyId, id: deleteTarget.id } });
+      setDeleteTarget(null);
+      window.location.reload();
+    } catch (e: any) {
+      setDeleteError(e?.message || "Failed to delete user.");
+      setDeleting(false);
+    }
+  };
+
   return (
     <DashboardLayout currentPath="/users">
       <div className="space-y-6">
@@ -111,6 +176,7 @@ function UsersPage() {
                   <th className="text-left px-6 py-3 font-medium">Email</th>
                   <th className="text-left px-6 py-3 font-medium">Role</th>
                   <th className="text-left px-6 py-3 font-medium">Source</th>
+                  <th className="text-right px-6 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -132,6 +198,31 @@ function UsersPage() {
                     <td className="px-6 py-3">
                       <span className="badge bg-green-100 text-green-800">{u.companyId ? "DB" : "Demo"}</span>
                     </td>
+                    <td className="px-6 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed"
+                          onClick={() => openEditUser(u)}
+                          disabled={!isDbUser}
+                          title={isDbUser ? "Edit this user" : "Connect a database to edit users"}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="text-xs font-medium text-red-600 hover:text-red-800 disabled:text-gray-300 disabled:cursor-not-allowed"
+                          onClick={() => { setDeleteError(""); setDeleteTarget(u); }}
+                          disabled={!isDbUser || u.id === user?.id || (u.role === "admin" && adminCount <= 1)}
+                          title={
+                            !isDbUser ? "Connect a database to delete users"
+                            : u.id === user?.id ? "You can't delete yourself"
+                            : u.role === "admin" && adminCount <= 1 ? "Can't delete the last admin"
+                            : "Delete this user"
+                          }
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -140,12 +231,12 @@ function UsersPage() {
         </div>
       </div>
 
-      {/* Add User Modal */}
+      {/* Add/Edit User Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
-            <h2 className="text-lg font-semibold mb-4">Add Team Member</h2>
-            <form onSubmit={handleAddUser} className="space-y-4">
+            <h2 className="text-lg font-semibold mb-4">{isEditing ? "Edit Team Member" : "Add Team Member"}</h2>
+            <form onSubmit={isEditing ? handleUpdateUser : handleAddUser} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input className="input-field" type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Full name" required />
@@ -156,7 +247,8 @@ function UsersPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="At least 6 characters" required minLength={6} />
+                <input className="input-field" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder={isEditing ? "Leave blank to keep current password" : "At least 6 characters"} required={!isEditing} minLength={6} />
+                {isEditing && <p className="text-xs text-gray-400 mt-1">Leave blank to keep the current password.</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
@@ -168,10 +260,27 @@ function UsersPage() {
               </div>
               {addError && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{addError}</div>}
               <div className="flex gap-3 pt-2">
-                <button type="button" className="btn-secondary flex-1" onClick={() => { setShowModal(false); setAddError(""); }}>Cancel</button>
-                <button type="submit" className="btn-primary flex-1" disabled={adding}>{adding ? "Adding..." : "Add User"}</button>
+                <button type="button" className="btn-secondary flex-1" onClick={closeModal}>Cancel</button>
+                <button type="submit" className="btn-primary flex-1" disabled={adding}>{adding ? (isEditing ? "Saving..." : "Adding...") : (isEditing ? "Save Changes" : "Add User")}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirm Dialog */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h2 className="text-lg font-semibold mb-2">Remove user?</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              This will permanently remove <strong>{deleteTarget.name}</strong> ({deleteTarget.email}).
+              This can't be undone.
+            </p>
+            {deleteError && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-4">{deleteError}</div>}
+            <div className="flex gap-3">
+              <button type="button" className="btn-secondary flex-1" onClick={() => { setDeleteTarget(null); setDeleteError(""); }} disabled={deleting}>Cancel</button>
+              <button type="button" className="btn-primary flex-1 !bg-red-600 !hover:bg-red-700" onClick={handleDeleteUser} disabled={deleting}>{deleting ? "Deleting..." : "Delete"}</button>
+            </div>
           </div>
         </div>
       )}
