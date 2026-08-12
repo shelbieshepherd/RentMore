@@ -409,7 +409,7 @@ export const fetchPayments = createServerFn()
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      SELECT id, company_id, booking_id, tenant_id, property_id, payment_type, method,
+      SELECT id, company_id, booking_id, tenant_id, property_id, owner_id, payment_type, method,
              amount_cents, description, status, check_number, created_at, processing_fee_cents, dispute_status
       FROM payments WHERE company_id = ${data.companyId}::uuid
       ORDER BY created_at DESC
@@ -418,14 +418,29 @@ export const fetchPayments = createServerFn()
   });
 
 export const insertPayment = createServerFn()
-  .validator((data: { companyId: string; bookingId?: string; tenantId?: string; propertyId: string; paymentType: string; method: string; amountCents: number; description: string; status: string }) => data)
+  .validator((data: { companyId: string; bookingId?: string; tenantId?: string; propertyId: string; paymentType: string; method: string; amountCents: number; description: string; status: string; ownerId?: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      INSERT INTO payments (company_id, booking_id, tenant_id, property_id, payment_type, method, amount_cents, description, status)
-      VALUES (${data.companyId}::uuid, ${uuidOrNull(data.bookingId)}::uuid, ${uuidOrNull(data.tenantId)}::uuid, ${data.propertyId}::uuid, ${data.paymentType}, ${data.method}, ${data.amountCents}, ${data.description}, ${data.status})
+      INSERT INTO payments (company_id, booking_id, tenant_id, property_id, owner_id, payment_type, method, amount_cents, description, status)
+      VALUES (${data.companyId}::uuid, ${uuidOrNull(data.bookingId)}::uuid, ${uuidOrNull(data.tenantId)}::uuid, ${data.propertyId}::uuid, ${uuidOrNull(data.ownerId)}::uuid, ${data.paymentType}, ${data.method}, ${data.amountCents}, ${data.description}, ${data.status})
       RETURNING id
     `;
     return rows[0];
+  });
+
+// ── Owner payouts — hybrid v1: record a disbursed payout as a payments row ──
+// The PM clicks "Record payout / Mark paid" once they've disbursed the money
+// from their own bank (ACH file or paper check). This writes a payment_type
+// 'payout' row so financial reporting reconciles. RentMore never moves funds.
+export const recordPayout = createServerFn()
+  .validator((data: { companyId: string; ownerId: string; propertyId?: string; amountCents: number; method: "ach" | "check" | string; period: string; checkNumber?: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      INSERT INTO payments (company_id, owner_id, property_id, payment_type, method, amount_cents, description, status, check_number)
+      VALUES (${data.companyId}::uuid, ${data.ownerId}::uuid, ${uuidOrNull(data.propertyId)}::uuid, 'payout', ${data.method}, ${data.amountCents}, ${`Owner payout — ${data.period}`}, 'completed', ${data.checkNumber || null})
+      RETURNING id, created_at
+    `;
+    return rows[0] ? { id: rows[0].id, createdAt: rows[0].created_at } : null;
   });
 
 // ── Stripe Connect (Option A — separate charges, RentMore never merchant of record) ──
@@ -696,9 +711,28 @@ export const updateOwner = createServerFn()
     }
     vals.push(ownerId, data.companyId);
     await sql().query(
-      `UPDATE owners SET ${setClauses.join(", ")} WHERE id = $${i}::uuid AND company_id = $${i + 1}::uuid`,
+      `UPDATE owners SET ${setClauses.join(", ")} WHERE id = ${i}::uuid AND company_id = ${i + 1}::uuid`,
       vals
     );
+  });
+
+export const deleteOwnerDB = createServerFn()
+  .validator((data: { companyId: string; ownerId: string }) => data)
+  .handler(async ({ data }) => {
+    // Financial integrity: an owner with recorded payouts cannot be deleted —
+    // the payout history is part of the company's books. Surface a clear error.
+    const payoutRows = await sql()`
+      SELECT 1 FROM payments WHERE owner_id = ${data.ownerId}::uuid AND company_id = ${data.companyId}::uuid LIMIT 1`;
+    if (payoutRows.length) {
+      throw new Error("This owner has recorded payouts and cannot be deleted. Keep the owner record for your books.");
+    }
+    // Unlink properties first (properties.owner_id FK has no ON DELETE CASCADE).
+    await sql()`
+      UPDATE properties SET owner_id = NULL
+      WHERE owner_id = ${data.ownerId}::uuid AND company_id = ${data.companyId}::uuid`;
+    await sql()`
+      DELETE FROM owners WHERE id = ${data.ownerId}::uuid AND company_id = ${data.companyId}::uuid`;
+    return { ok: true };
   });
 
 // ── Owner payouts — hybrid v1: ACH-list CSV export (NO money movement) ──
@@ -738,8 +772,9 @@ export const generateAchListExport = createServerFn()
     const end = now.toISOString().slice(0, 10);
     const statements = calculateOwnerPayouts(owners, properties, payments, maintenance, start, end);
 
-    // Aggregate per-owner net payout across their properties
-    const totals = new Map<string, { name: string; routing: string; account: string; net: number }>();
+    // Aggregate per-owner net payout across their properties (ACH owners only —
+    // check owners get printable check stubs instead of a bank file).
+    const totals = new Map<string, { name: string; routing: string; account: string; method: string; net: number }>();
     for (const s of statements) {
       const owner = ownerRows.find((o) => o.id === s.ownerId);
       if (!owner) continue;
@@ -747,6 +782,7 @@ export const generateAchListExport = createServerFn()
         name: s.ownerName,
         routing: owner.routing_number || "",
         account: owner.account_number || "",
+        method: owner.payout_method || "ach",
         net: 0,
       };
       t.net += s.netPayout;
@@ -755,6 +791,7 @@ export const generateAchListExport = createServerFn()
 
     const lines = ["Owner Name,Routing Number,Account Number,Amount"];
     for (const [, t] of totals) {
+      if (t.method !== "ach") continue; // ACH export only — checks are printed, not uploaded
       if (t.net <= 0 || !t.routing || !t.account) continue; // only positive ACH payouts with bank details
       const name = /[",\n]/.test(t.name) ? `"${t.name.replace(/"/g, '""')}"` : t.name;
       lines.push(`${name},${t.routing},${t.account},${(t.net / 100).toFixed(2)}`);

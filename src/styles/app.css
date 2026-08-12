@@ -58,3 +58,19 @@
     to { transform: rotate(360deg); }
   }
 }
+/* Check-stub printing: only the stub prints; the rest of the page is hidden. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #check-stub,
+  #check-stub * {
+    visibility: visible;
+  }
+  #check-stub {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}

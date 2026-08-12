@@ -82,6 +82,10 @@ export interface Payment {
   commissionable?: boolean;
   bookingId?: string;
   disputeStatus?: string;
+  /** Linked owner for payout rows (payment_type 'payout'). */
+  ownerId?: string;
+  /** DB payment_type: 'charge' | 'deposit' | 'payout' | 'refund' | 'utility'. */
+  paymentType?: string;
 }
 
 export interface MaintenanceRequest {
@@ -218,6 +222,8 @@ export interface Owner {
   tin: string; // EIN or SSN
   address: { street: string; city: string; state: string; zip: string };
   achInfo: { bankName: string; routingNumber: string; accountNumber: string };
+  /** Payout preference — 'ACH' | 'check' (PM-provided, hybrid payouts model). */
+  payoutMethod?: "ACH" | "check";
   propertyIds: string[];
   createdAt: string;
 }
@@ -322,6 +328,7 @@ export const owners: Owner[] = [
     tin: "12-3456789",
     address: { street: "456 Harbor Blvd", city: "Santa Monica", state: "CA", zip: "90401" },
     achInfo: { bankName: "Chase Bank", routingNumber: "021000021", accountNumber: "XXXX6789" },
+    payoutMethod: "ACH",
     propertyIds: ["p1", "p4"], createdAt: "2024-01-01",
   },
   {
@@ -329,6 +336,7 @@ export const owners: Owner[] = [
     tin: "98-7654321",
     address: { street: "789 Mountain Rd", city: "Lake Tahoe", state: "CA", zip: "96150" },
     achInfo: { bankName: "Wells Fargo", routingNumber: "121000248", accountNumber: "XXXX3456" },
+    payoutMethod: "check",
     propertyIds: ["p2", "p5"], createdAt: "2024-02-15",
   },
   {

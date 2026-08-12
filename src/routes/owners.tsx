@@ -17,6 +17,7 @@ const emptyOwner: Omit<Owner, "id" | "createdAt" | "propertyIds"> = {
   name: "", email: "", phone: "",
   address: { street: "", city: "", state: "", zip: "" },
   achInfo: { bankName: "", routingNumber: "", accountNumber: "" },
+  payoutMethod: "ACH",
 };
 
 function OwnersPage() {
@@ -54,6 +55,7 @@ function OwnersPage() {
       phone: o.phone,
       address: { ...o.address },
       achInfo: { ...o.achInfo },
+      payoutMethod: o.payoutMethod || "ACH",
     });
     setSuccess(false);
   };
@@ -79,11 +81,16 @@ function OwnersPage() {
     setConfirmDelete(id);
   };
 
-  const confirmDeleteOwner = () => {
-    if (confirmDelete) {
-      deleteOwner(confirmDelete);
+  const confirmDeleteOwner = async () => {
+    if (!confirmDelete) return;
+    const res = await deleteOwner(confirmDelete);
+    if (res && !res.ok) {
+      // DB refused (owner has recorded payouts) — show the reason and keep the row.
+      alert(res.error || "This owner could not be deleted.");
       setConfirmDelete(null);
+      return;
     }
+    setConfirmDelete(null);
   };
 
   const handleCharge = (ownerId: string) => {
@@ -165,7 +172,7 @@ function OwnersPage() {
                   <th className="px-6 py-3 font-medium text-gray-500">Phone</th>
                   <th className="px-6 py-3 font-medium text-gray-500">Address</th>
                   <th className="px-6 py-3 font-medium text-gray-500">Properties</th>
-                  <th className="px-6 py-3 font-medium text-gray-500">ACH Account</th>
+                  <th className="px-6 py-3 font-medium text-gray-500">Payout</th>
                   <th className="px-6 py-3 font-medium text-gray-500 text-right">Actions</th>
                 </tr>
               </thead>
@@ -194,9 +201,16 @@ function OwnersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-gray-500">
-                        <span className="text-xs font-mono">
-                          {o.achInfo?.bankName || "—"} • {maskAccount(o.achInfo?.accountNumber || "")}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`badge text-[10px] ${o.payoutMethod === "check" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>
+                            {o.payoutMethod === "check" ? "Check" : "ACH"}
+                          </span>
+                          {o.payoutMethod !== "check" && (
+                            <span className="text-xs font-mono">
+                              {o.achInfo?.bankName || "—"} • {maskAccount(o.achInfo?.accountNumber || "")}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -293,25 +307,42 @@ function OwnersPage() {
 
                   {/* ACH Payment Info */}
                   <fieldset>
-                    <legend className="text-sm font-semibold text-gray-700 mb-3">ACH Payment Information</legend>
+                    <legend className="text-sm font-semibold text-gray-700 mb-3">Payout Information</legend>
                     <p className="text-[10px] text-amber-600 bg-amber-50 rounded-lg px-2 py-1 mb-3">
-                      ⚠️ ACH details are stored locally. Production must encrypt at rest and transmit over HTTPS only.
+                      ⚠️ These details are PM-provided and used to generate your ACH export file and check stubs.
+                      RentMore never transmits payments or touches owner funds — you move the money from your own bank.
+                      Handle the ACH export securely.
                     </p>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Bank Name</label>
-                        <input className="input-field" value={form.achInfo.bankName} onChange={e => setForm({ ...form, achInfo: { ...form.achInfo, bankName: e.target.value } })} />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Payout Method *</label>
+                        <select
+                          className="input-field"
+                          value={form.payoutMethod}
+                          onChange={e => setForm({ ...form, payoutMethod: e.target.value as "ACH" | "check" })}
+                        >
+                          <option value="ACH">ACH (direct deposit)</option>
+                          <option value="check">Paper check</option>
+                        </select>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Routing Number</label>
-                          <input className="input-field" maxLength={9} value={form.achInfo.routingNumber} onChange={e => setForm({ ...form, achInfo: { ...form.achInfo, routingNumber: e.target.value } })} />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Account Number</label>
-                          <input className="input-field" value={form.achInfo.accountNumber} onChange={e => setForm({ ...form, achInfo: { ...form.achInfo, accountNumber: e.target.value } })} />
-                        </div>
-                      </div>
+                      {form.payoutMethod !== "check" && (
+                        <>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Bank Name</label>
+                            <input className="input-field" value={form.achInfo.bankName} onChange={e => setForm({ ...form, achInfo: { ...form.achInfo, bankName: e.target.value } })} />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Routing Number</label>
+                              <input className="input-field" maxLength={9} value={form.achInfo.routingNumber} onChange={e => setForm({ ...form, achInfo: { ...form.achInfo, routingNumber: e.target.value } })} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Account Number</label>
+                              <input className="input-field" value={form.achInfo.accountNumber} onChange={e => setForm({ ...form, achInfo: { ...form.achInfo, accountNumber: e.target.value } })} />
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </fieldset>
 
@@ -339,7 +370,10 @@ function OwnersPage() {
                 <p className="text-sm text-gray-500 mb-2">
                   This will unlink {owner?.name} from {ownerPropertyCount(confirmDelete)} property(s).
                 </p>
-                <p className="text-xs text-gray-400 mb-5">This action cannot be undone.</p>
+                <p className="text-xs text-gray-400 mb-5">
+                  Owners with recorded payouts cannot be deleted (kept for your books).
+                  This action cannot be undone.
+                </p>
                 <div className="flex gap-3">
                   <button onClick={confirmDeleteOwner} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Delete</button>
                   <button onClick={() => setConfirmDelete(null)} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>

@@ -268,6 +268,8 @@ function mapDbPayment(p: any): Payment {
     method: p.method as Payment["method"], description: p.description || "",
     bookingId: p.booking_id || undefined,
     disputeStatus: p.dispute_status || undefined,
+    ownerId: p.owner_id || undefined,
+    paymentType: p.payment_type || undefined,
   };
 }
 function mapDbMaintenance(m: any): MaintenanceRequest {
@@ -281,9 +283,18 @@ function mapDbMaintenance(m: any): MaintenanceRequest {
 }
 function mapDbOwner(o: any): Owner {
   return {
-    id: o.id, name: o.name, email: o.email, phone: o.phone,
+    id: o.id, name: o.name, email: o.email || "", phone: o.phone || "",
+    tin: "", // not stored on owners yet
+    address: { street: "", city: "", state: "", zip: "" }, // not stored on owners yet
+    achInfo: {
+      bankName: o.bank_name || "",
+      routingNumber: o.routing_number || "",
+      accountNumber: o.account_number || "",
+    },
+    payoutMethod: o.payout_method === "check" ? "check" : "ACH",
     properties: [], commissionRate: 0, payoutSchedule: o.payout_schedule || "monthly",
     stripeAccountId: o.stripe_connect_id,
+    propertyIds: [], createdAt: String(o.created_at || "").slice(0, 10),
   };
 }
 function mapDbPaymentMethod(pm: any): PaymentMethodEntry {
@@ -486,9 +497,102 @@ export function addOwner(o: Omit<Owner, "id">): Owner {
     const { insertOwner } = await import("./db-queries");
     await insertOwner({ data: {
       companyId: state.companyId, name: entry.name, email: entry.email, phone: entry.phone,
+      bankName: entry.achInfo?.bankName, routingNumber: entry.achInfo?.routingNumber,
+      accountNumber: entry.achInfo?.accountNumber,
+      payoutMethod: entry.payoutMethod === "check" ? "check" : "ach",
     }});
   });
   return entry;
+}
+export function updateOwner(id: string, updates: Partial<Owner>): Owner | undefined {
+  const idx = state.owners.findIndex(x => x.id === id);
+  if (idx < 0) return undefined;
+  const next: Owner = { ...state.owners[idx], ...updates };
+  state.owners[idx] = next; notify();
+  persistQuietly(async () => {
+    const { updateOwner } = await import("./db-queries");
+    await updateOwner({ data: {
+      companyId: state.companyId, ownerId: id,
+      updates: {
+        name: next.name, email: next.email, phone: next.phone,
+        bankName: next.achInfo?.bankName, routingNumber: next.achInfo?.routingNumber,
+        accountNumber: next.achInfo?.accountNumber,
+        payoutMethod: next.payoutMethod === "check" ? "check" : "ach",
+      },
+    }});
+  });
+  return next;
+}
+export async function deleteOwner(id: string): Promise<{ ok: boolean; error?: string }> {
+  const idx = state.owners.findIndex(x => x.id === id);
+  if (idx >= 0) { state.owners.splice(idx, 1); notify(); }
+  try {
+    const { deleteOwnerDB } = await import("./db-queries");
+    await deleteOwnerDB({ data: { companyId: state.companyId, ownerId: id } });
+    return { ok: true };
+  } catch (e) {
+    // DB refused (e.g. owner has recorded payouts) — roll the row back into the store.
+    const { fetchOwners } = await import("./db-queries");
+    try {
+      const rows = await fetchOwners({ data: { companyId: state.companyId } });
+      state.owners = rows.map(mapDbOwner);
+    } catch { /* keep local state as-is */ }
+    notify();
+    return { ok: false, error: e instanceof Error ? e.message : "Delete failed" };
+  }
+}
+/** Hybrid v1 "Record payout / Mark paid": writes a payment_type 'payout' row so reporting reconciles. */
+export async function recordPayout(op: {
+  ownerId: string; propertyId: string; amountCents: number; method: "ACH" | "check"; period: string;
+}): Promise<{ id: string } | null> {
+  try {
+    const { recordPayout } = await import("./db-queries");
+    const res = await recordPayout({ data: {
+      companyId: state.companyId, ownerId: op.ownerId, propertyId: op.propertyId,
+      amountCents: op.amountCents,
+      method: op.method === "check" ? "check" : "ach",
+      period: op.period,
+    }});
+    if (!res) return null;
+    const entry: Payment = {
+      id: res.id, propertyId: op.propertyId, tenantId: "",
+      amount: op.amountCents / 100,
+      date: String(res.createdAt || new Date().toISOString()).slice(0, 10),
+      dueDate: String(res.createdAt || new Date().toISOString()).slice(0, 10),
+      status: "paid", method: op.method === "check" ? "check" : "ach",
+      description: `Owner payout — ${op.period}`,
+      ownerId: op.ownerId, paymentType: "payout",
+    };
+    state.payments.unshift(entry); notify();
+    // Keep the legacy ownerPayouts list in sync (reports + owner portal read it).
+    state.ownerPayouts.unshift({
+      id: res.id, ownerId: op.ownerId, propertyId: op.propertyId, period: op.period,
+      amount: op.amountCents / 100, status: "paid",
+      datePaid: String(res.createdAt || new Date().toISOString()).slice(0, 10),
+      method: op.method === "check" ? "check" : "ACH",
+    });
+    notify();
+    return { id: res.id };
+  } catch {
+    // DB unavailable (demo mode) — keep an in-memory row so the UI still works.
+    const entry: Payment = {
+      id: crypto.randomUUID(), propertyId: op.propertyId, tenantId: "",
+      amount: op.amountCents / 100,
+      date: new Date().toISOString().slice(0, 10), dueDate: new Date().toISOString().slice(0, 10),
+      status: "paid", method: op.method === "check" ? "check" : "ach",
+      description: `Owner payout — ${op.period}`,
+      ownerId: op.ownerId, paymentType: "payout",
+    };
+    state.payments.unshift(entry); notify();
+    state.ownerPayouts.unshift({
+      id: entry.id, ownerId: op.ownerId, propertyId: op.propertyId, period: op.period,
+      amount: op.amountCents / 100, status: "paid",
+      datePaid: new Date().toISOString().slice(0, 10),
+      method: op.method === "check" ? "check" : "ACH",
+    });
+    notify();
+    return { id: entry.id };
+  }
 }
 export function addStoredPaymentMethod(method: Omit<PaymentMethodEntry, "id">): PaymentMethodEntry {
   const entry: PaymentMethodEntry = { ...method, id: crypto.randomUUID() };
