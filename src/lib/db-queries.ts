@@ -361,6 +361,7 @@ export const updateBookingDB = createServerFn()
   .validator((data: { bookingId: string; updates: Record<string, unknown> }) => data)
   .handler(async ({ data }) => {
     const { bookingId, updates } = data;
+    if (!Object.keys(updates).length) return;
     const sets: string[] = [];
     const vals: unknown[] = [];
     let i = 1;
@@ -370,9 +371,9 @@ export const updateBookingDB = createServerFn()
       vals.push(v);
     }
     vals.push(bookingId);
-    await sql()`UPDATE bookings SET `.append(
-      // Use raw interpolation for dynamic column names
-      sql().unsafe(`UPDATE bookings SET ${sets.join(", ")} WHERE id = $${i}::uuid`, vals)
+    await sql().query(
+      `UPDATE bookings SET ${sets.join(", ")} WHERE id = $${i}::uuid`,
+      vals
     );
   });
 
@@ -492,8 +493,9 @@ export const updateMaintenanceRequestDB = createServerFn()
       vals.push(v);
     }
     vals.push(requestId);
-    await sql()`UPDATE maintenance_requests SET `.append(
-      sql().unsafe(`UPDATE maintenance_requests SET ${setClauses.join(", ")} WHERE id = $${i}::uuid`, vals)
+    await sql().query(
+      `UPDATE maintenance_requests SET ${setClauses.join(", ")} WHERE id = $${i}::uuid`,
+      vals
     );
   });
 
