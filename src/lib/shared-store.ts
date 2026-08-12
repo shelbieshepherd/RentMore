@@ -266,6 +266,8 @@ function mapDbPayment(p: any): Payment {
     date: String(p.created_at).slice(0, 10), dueDate: String(p.created_at).slice(0, 10),
     status: p.status === "completed" ? "paid" : p.status === "pending" ? "pending" : "overdue",
     method: p.method as Payment["method"], description: p.description || "",
+    bookingId: p.booking_id || undefined,
+    disputeStatus: p.dispute_status || undefined,
   };
 }
 function mapDbMaintenance(m: any): MaintenanceRequest {

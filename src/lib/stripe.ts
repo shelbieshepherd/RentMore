@@ -111,13 +111,16 @@ export async function createCheckoutSession(input: CheckoutSessionInput) {
   });
 }
 
-/** Verify a Stripe webhook signature (STRIPE_WEBHOOK_SECRET). */
-export function verifyWebhookEvent(body: string | Buffer, signature: string) {
+/** Verify a Stripe webhook signature (STRIPE_WEBHOOK_SECRET).
+ * Async: the SDK's sync constructEvent throws under SubtleCryptoProvider
+ * (Bun/edge runtimes; also picks WebCrypto on Node 22), so use the async
+ * variant which works in every runtime. */
+export async function verifyWebhookEvent(body: string | Buffer, signature: string) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) {
     throw new Error(
       "STRIPE_WEBHOOK_SECRET is not set — add it to the Vercel env vars before enabling webhooks.",
     );
   }
-  return stripe().webhooks.constructEvent(body, signature, secret);
+  return stripe().webhooks.constructEventAsync(body, signature, secret);
 }

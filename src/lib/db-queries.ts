@@ -410,7 +410,7 @@ export const fetchPayments = createServerFn()
   .handler(async ({ data }) => {
     const rows = await sql()`
       SELECT id, company_id, booking_id, tenant_id, property_id, payment_type, method,
-             amount_cents, description, status, check_number, created_at
+             amount_cents, description, status, check_number, created_at, processing_fee_cents, dispute_status
       FROM payments WHERE company_id = ${data.companyId}::uuid
       ORDER BY created_at DESC
     `;
@@ -500,7 +500,7 @@ export const fetchConnectStatus = createServerFn()
   });
 
 export const createCheckoutSession = createServerFn()
-  .validator((data: { companyId: string; amountCents: number; paymentType: string; bookingId?: string; method?: string }) => data)
+  .validator((data: { companyId: string; amountCents: number; paymentType: string; bookingId?: string; propertyId?: string; method?: string }) => data)
   .handler(async ({ data }) => {
     const isAch = data.method === "ach";
     const feeCents = processingFee(data.amountCents, isAch ? "ACH" : "credit card");
@@ -526,6 +526,15 @@ export const createCheckoutSession = createServerFn()
     const cancelUrl = data.bookingId
       ? `${SITE_BASE}/guest/${data.bookingId}?checkout=cancelled`
       : `${SITE_BASE}/payments?checkout=cancelled`;
+    // Attribution metadata: the Chunk D webhook uses this to reconcile the
+    // payment_intent to a company/booking/property/payment-type/method row.
+    const meta: Record<string, string> = {
+      company_id: data.companyId,
+      payment_type: data.paymentType,
+      method: isAch ? "ach" : "card",
+    };
+    if (data.bookingId) meta.booking_id = data.bookingId;
+    if (data.propertyId) meta.property_id = data.propertyId;
     const session = await stripe().checkout.sessions.create({
       mode: "payment",
       line_items: [
@@ -534,9 +543,11 @@ export const createCheckoutSession = createServerFn()
           quantity: 1,
         },
       ],
+      metadata: meta,
       payment_intent_data: {
         application_fee_amount: feeCents,
         on_behalf_of: company.stripe_connect_account_id, // customer = merchant of record
+        metadata: meta,
       },
       payment_method_types: isAch ? ["us_bank_account"] : ["card"],
       success_url: successUrl,

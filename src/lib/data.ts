@@ -80,6 +80,8 @@ export interface Payment {
   method: PaymentMethod;
   description: string;
   commissionable?: boolean;
+  bookingId?: string;
+  disputeStatus?: string;
 }
 
 export interface MaintenanceRequest {

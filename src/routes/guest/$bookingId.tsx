@@ -196,6 +196,7 @@ function GuestPortal() {
         {isShortTerm && (
           <PaymentCard
             bookingId={booking.id}
+            propertyId={property.id}
             companyId={booking.companyId}
             isDemo={!!(connect && connect.isDemo) || !booking.companyId}
             onlineReady={!!(connect && !connect.isDemo && connect.onboardingComplete)}
@@ -329,6 +330,7 @@ function GuestPortal() {
 /* ─── Payment Card (deposit + balance, per payment-policy.ts) ─── */
 function PaymentCard({
   bookingId,
+  propertyId,
   companyId,
   isDemo,
   onlineReady,
@@ -340,6 +342,7 @@ function PaymentCard({
   balanceDueDate,
 }: {
   bookingId: string;
+  propertyId: string;
   companyId?: string;
   isDemo: boolean;
   onlineReady: boolean;
@@ -391,6 +394,7 @@ function PaymentCard({
         data: {
           companyId: companyId!,
           bookingId,
+          propertyId,
           amountCents,
           paymentType: target === "deposit" ? "deposit" : "charge",
           method: payMethod,

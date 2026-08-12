@@ -49,6 +49,22 @@ for (let attempt = 1; ; attempt++) {
         const isSafari = SAFARI_RE.test(ua);
 
         // Email queue API — writes to shared queue file for the lead agent
+        // Stripe webhook (Chunk D) - signature-verified reconciliation. Handled
+        // here (raw POST; Stripe can't hit a CSRF-protected server fn) with the
+        // shared handler also wired into vercel-entry.ts for production.
+        if (pathname === "/api/stripe/webhook" && req.method === "POST") {
+          try {
+            const { handleStripeWebhook } = await import("./src/lib/stripe-webhook");
+            const rawBody = await req.text();
+            return handleStripeWebhook(rawBody, req.headers.get("stripe-signature"));
+          } catch (err: any) {
+            console.error("[RentMore] stripe webhook error:", err?.message);
+            return new Response(JSON.stringify({ error: "internal" }), {
+              status: 500,
+              headers: { "content-type": "application/json" },
+            });
+          }
+        }
         if (pathname === "/api/send-email" && req.method === "POST") {
           try {
             const body = await req.json() as { to: string; toName?: string; subject: string; html: string };

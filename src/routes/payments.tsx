@@ -228,6 +228,8 @@ function PaymentsPage() {
             amountCents: Math.round(pay.amount * 100),
             paymentType: pay.description?.toLowerCase().includes("deposit") ? "deposit" : "charge",
             method: checkoutMethod === "ACH" ? "ach" : "card",
+            bookingId: pay.bookingId,
+            propertyId: pay.propertyId || undefined,
           },
         });
         if (result.mock || !result.url) {
@@ -464,6 +466,11 @@ function PaymentsPage() {
                     <td className="px-6 py-3 text-right font-medium">{formatCurrency(p.amount)}</td>
                     <td className="px-6 py-3">
                       <span className={`badge ${getStatusColor(p.status)}`}>{p.status}</span>
+                      {p.disputeStatus && (
+                        <span className="ml-1 inline-block text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold align-middle">
+                          ⚠ dispute{p.disputeStatus !== "created" ? `: ${p.disputeStatus}` : ""}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">

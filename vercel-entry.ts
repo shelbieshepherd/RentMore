@@ -16,6 +16,14 @@ const fetchHandler = handler as {
   fetch: (request: Request) => Response | Promise<Response>;
 };
 
+/** Read the raw request body (webhook signatures must verify the exact bytes). */
+const readRawBody = async (req: IncomingMessage): Promise<string> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+};
 const toWebRequest = (req: IncomingMessage): Request => {
   const host = req.headers.host ?? "localhost";
   const proto =
@@ -42,6 +50,24 @@ export default async function vercelHandler(
   res: ServerResponse,
 ): Promise<void> {
   try {
+    const url = new URL(req.url ?? "/", "https://www.rentmorevrs.com");
+    if (url.pathname === "/api/stripe/webhook" && (req.method ?? "GET") === "POST") {
+      try {
+        const { handleStripeWebhook } = await import("./src/lib/stripe-webhook");
+        const rawBody = await readRawBody(req);
+        const sig = (req.headers["stripe-signature"] as string | undefined) ?? null;
+        const webRes = await handleStripeWebhook(rawBody, sig);
+        res.statusCode = webRes.status;
+        webRes.headers.forEach((value, key) => res.setHeader(key, value));
+        res.end(await webRes.text());
+      } catch (err) {
+        console.error("[team-site] stripe webhook failed", err);
+        res.statusCode = 500;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ error: "internal" }));
+      }
+      return;
+    }
     const webRes = await fetchHandler.fetch(toWebRequest(req));
     res.statusCode = webRes.status;
     webRes.headers.forEach((value, key) => res.setHeader(key, value));
