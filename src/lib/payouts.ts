@@ -1,5 +1,33 @@
 // RentVue - Owner Payout Calculation Engine
-import type { Owner, Property, Payment, MaintenanceRequest } from "./data";
+// Minimal structural types: callers may pass their own row shapes (store types
+// from ./data, or DB-mapped rows from server fns) as long as the fields used
+// below are present.
+export interface PayoutOwner {
+  id: string;
+  name: string;
+}
+export interface PayoutProperty {
+  id: string;
+  ownerId: string;
+  name: string;
+}
+export interface PayoutPayment {
+  id: string;
+  propertyId: string;
+  status: string; // 'paid' rows are counted (DB 'completed' maps to 'paid')
+  date: string;
+  description: string;
+  amount: number; // cents
+}
+export interface PayoutMaintenance {
+  id: string;
+  propertyId: string;
+  status: string; // 'resolved' rows are counted (DB 'completed' maps to 'resolved')
+  dateReported: string;
+  dateResolved?: string;
+  description: string;
+  priority: string; // 'urgent' | 'high' | 'medium' | 'low'
+}
 
 export interface PayoutLineItem {
   transactionId: string;
@@ -30,10 +58,10 @@ export function getDefaultManagementFee(ownerId: string): number {
 }
 
 export function calculateOwnerPayouts(
-  owners: Owner[],
-  properties: Property[],
-  payments: Payment[],
-  maintenanceRequests: MaintenanceRequest[],
+  owners: PayoutOwner[],
+  properties: PayoutProperty[],
+  payments: PayoutPayment[],
+  maintenanceRequests: PayoutMaintenance[],
   startDate: string,
   endDate: string,
 ): OwnerPayoutStatement[] {

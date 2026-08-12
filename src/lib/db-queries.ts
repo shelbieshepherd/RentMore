@@ -2,8 +2,11 @@
 // All DB access goes through createServerFn handlers; never call sql() directly from client code.
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
+import { processingFee } from "./fees";
+import { calculateOwnerPayouts } from "./payouts";
 
 export const DEFAULT_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
+const SITE_BASE = "https://www.rentmorevrs.com";
 
 // Convert Neon row to JSON-safe plain object (Date → ISO string)
 function jsonSafe(row: Record<string, unknown>): Record<string, unknown> {
@@ -425,6 +428,122 @@ export const insertPayment = createServerFn()
     return rows[0];
   });
 
+// ── Stripe Connect (Option A — separate charges, RentMore never merchant of record) ──
+// Demo company stays on the mock path: never touches the real Stripe API.
+
+export const createConnectAccount = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    if (data.companyId === DEFAULT_COMPANY_ID) {
+      return { accountId: "acct_demo_mock", onboardingUrl: null, mock: true };
+    }
+    const companyRows = await sql()`
+      SELECT id, name, stripe_connect_account_id
+      FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
+    if (!companyRows.length) throw new Error("Company not found");
+    const { getOnboardingLink, createConnectAccount: createAcct } = await import("~/lib/stripe");
+    const refresh = `${SITE_BASE}/settings/payments`;
+    const ret = `${SITE_BASE}/settings/payments?onboarded=1`;
+    const existing = companyRows[0].stripe_connect_account_id;
+    if (existing) {
+      // Account exists but onboarding incomplete — hand back a resume link.
+      const link = await getOnboardingLink({ accountId: existing, refreshUrl: refresh, returnUrl: ret });
+      return { accountId: existing, onboardingUrl: link.url };
+    }
+    const userRows = await sql()`
+      SELECT email FROM users WHERE company_id = ${data.companyId}::uuid ORDER BY created_at LIMIT 1`;
+    const email = userRows[0]?.email || `owner+${data.companyId.slice(0, 8)}@rentmorevrs.com`;
+    const acct = await createAcct({ email, businessName: companyRows[0].name });
+    await sql()`
+      UPDATE companies SET stripe_connect_account_id = ${acct.id} WHERE id = ${data.companyId}::uuid`;
+    const link = await getOnboardingLink({ accountId: acct.id, refreshUrl: refresh, returnUrl: ret });
+    return { accountId: acct.id, onboardingUrl: link.url };
+  });
+
+export const getOnboardingLink = createServerFn()
+  .validator((data: { accountId: string }) => data)
+  .handler(async ({ data }) => {
+    if (data.accountId === "acct_demo_mock") return { url: null, mock: true };
+    const { getOnboardingLink: makeLink } = await import("~/lib/stripe");
+    const link = await makeLink({
+      accountId: data.accountId,
+      refreshUrl: `${SITE_BASE}/settings/payments`,
+      returnUrl: `${SITE_BASE}/settings/payments?onboarded=1`,
+    });
+    return { url: link.url };
+  });
+
+export const setConnectOnboardingComplete = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    if (data.companyId === DEFAULT_COMPANY_ID) return { success: true };
+    await sql()`
+      UPDATE companies SET stripe_connect_onboarding_complete = true WHERE id = ${data.companyId}::uuid`;
+    return { success: true };
+  });
+
+export const createCheckoutSession = createServerFn()
+  .validator((data: { companyId: string; amountCents: number; paymentType: string; bookingId?: string; method?: string }) => data)
+  .handler(async ({ data }) => {
+    const isAch = data.method === "ach";
+    const feeCents = processingFee(data.amountCents, isAch ? "ACH" : "credit card");
+    if (data.companyId === DEFAULT_COMPANY_ID) {
+      return { url: null, sessionId: `cs_demo_${Date.now()}`, mock: true, feeCents };
+    }
+    const companyRows = await sql()`
+      SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
+      FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
+    const company = companyRows[0];
+    if (!company || !company.stripe_connect_account_id || !company.stripe_connect_onboarding_complete) {
+      throw new Error("Online payments are not enabled for this company — complete Stripe onboarding first.");
+    }
+    const { stripe } = await import("~/lib/stripe");
+    const productName =
+      data.paymentType === "deposit" ? "RentMore booking deposit" :
+      data.paymentType === "charge" ? "RentMore booking payment" :
+      data.paymentType === "rent" ? "RentMore rent payment" :
+      `RentMore ${data.paymentType} payment`;
+    const successUrl = data.bookingId
+      ? `${SITE_BASE}/guest/${data.bookingId}?checkout=success`
+      : `${SITE_BASE}/payments?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = data.bookingId
+      ? `${SITE_BASE}/guest/${data.bookingId}?checkout=cancelled`
+      : `${SITE_BASE}/payments?checkout=cancelled`;
+    const session = await stripe().checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          price_data: { currency: "usd", product_data: { name: productName }, unit_amount: data.amountCents },
+          quantity: 1,
+        },
+      ],
+      payment_intent_data: {
+        application_fee_amount: feeCents,
+        on_behalf_of: company.stripe_connect_account_id, // customer = merchant of record
+      },
+      payment_method_types: isAch ? ["us_bank_account"] : ["card"],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+    return { url: session.url, sessionId: session.id, feeCents };
+  });
+
+export const fetchBookingByReservationNumber = createServerFn()
+  .validator((data: { reservationNumber: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      SELECT b.id, b.company_id, b.property_id, b.guest_name, b.guest_email, b.guest_phone,
+             b.guest_address, b.start_date, b.end_date, b.nightly_rate, b.status,
+             b.total_amount, b.reservation_number, b.deposit_collected_cents, b.created_at,
+             p.name AS property_name
+      FROM bookings b
+      JOIN properties p ON p.id = b.property_id
+      WHERE b.reservation_number = ${data.reservationNumber}
+      LIMIT 1
+    `;
+    return rows[0] ? jsonSafe(rows[0]) : null;
+  });
+
 // ── Maintenance ──
 export const fetchMaintenanceRequests = createServerFn()
   .validator((data: { companyId: string }) => data)
@@ -504,21 +623,108 @@ export const fetchOwners = createServerFn()
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      SELECT id, company_id, name, email, phone, stripe_connect_id, payout_schedule, created_at
+      SELECT id, company_id, name, email, phone, stripe_connect_id, payout_schedule,
+             bank_name, routing_number, account_number, payout_method, created_at
       FROM owners WHERE company_id = ${data.companyId}::uuid
     `;
     return rows.map(jsonSafe);
   });
 
 export const insertOwner = createServerFn()
-  .validator((data: { companyId: string; name: string; email?: string; phone?: string }) => data)
+  .validator((data: { companyId: string; name: string; email?: string; phone?: string; bankName?: string; routingNumber?: string; accountNumber?: string; payoutMethod?: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      INSERT INTO owners (company_id, name, email, phone)
-      VALUES (${data.companyId}::uuid, ${data.name}, ${data.email || null}, ${data.phone || null})
+      INSERT INTO owners (company_id, name, email, phone, bank_name, routing_number, account_number, payout_method)
+      VALUES (${data.companyId}::uuid, ${data.name}, ${data.email || null}, ${data.phone || null},
+        ${data.bankName || null}, ${data.routingNumber || null}, ${data.accountNumber || null},
+        ${data.payoutMethod || "ach"})
       RETURNING id
     `;
     return rows[0];
+  });
+
+export const updateOwner = createServerFn()
+  .validator((data: { companyId: string; ownerId: string; updates: Record<string, unknown> }) => data)
+  .handler(async ({ data }) => {
+    const { ownerId, updates } = data;
+    if (!Object.keys(updates).length) return;
+    const setClauses: string[] = [];
+    const vals: unknown[] = [];
+    let i = 1;
+    // Blank strings become NULL for these optional text columns (bank fields are
+    // PM-provided data, not Stripe-linked — clearing them must be possible).
+    const NULLABLE = new Set(["email", "phone", "bank_name", "routing_number", "account_number"]);
+    for (const [k, v] of Object.entries(updates)) {
+      const col = camelToSnake(k);
+      setClauses.push(`${col} = $${i++}`);
+      vals.push(NULLABLE.has(col) && (v === "" || v == null) ? null : v);
+    }
+    vals.push(ownerId, data.companyId);
+    await sql().query(
+      `UPDATE owners SET ${setClauses.join(", ")} WHERE id = $${i}::uuid AND company_id = $${i + 1}::uuid`,
+      vals
+    );
+  });
+
+// ── Owner payouts — hybrid v1: ACH-list CSV export (NO money movement) ──
+// The PM uploads this file to their own bank's bill-pay/ACH screen. RentMore
+// never transmits it and never touches owner funds. Amount = each owner's net
+// payout for the current calendar month, from the shared payout engine.
+export const generateAchListExport = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    const [ownerRows, propRows, payRows, maintRows] = await Promise.all([
+      sql()`SELECT id, name, routing_number, account_number, payout_method FROM owners WHERE company_id = ${data.companyId}::uuid`,
+      sql()`SELECT id, owner_id, name FROM properties WHERE company_id = ${data.companyId}::uuid`,
+      sql()`SELECT id, property_id, amount_cents, description, status, created_at FROM payments WHERE company_id = ${data.companyId}::uuid AND payment_type IN ('charge','deposit')`,
+      sql()`SELECT id, property_id, description, priority, status, created_at, updated_at FROM maintenance_requests WHERE company_id = ${data.companyId}::uuid`,
+    ]);
+    const owners: PayoutOwner[] = ownerRows.map((r) => ({ id: r.id, name: r.name }));
+    const properties: PayoutProperty[] = propRows.map((r) => ({ id: r.id, ownerId: r.owner_id || "", name: r.name }));
+    const payments: PayoutPayment[] = payRows.map((r) => ({
+      id: r.id,
+      propertyId: r.property_id,
+      status: r.status === "completed" ? "paid" : r.status,
+      date: dbDateStr(r.created_at),
+      description: r.description || "Payment",
+      amount: Number(r.amount_cents) || 0,
+    }));
+    const maintenance: PayoutMaintenance[] = maintRows.map((r) => ({
+      id: r.id,
+      propertyId: r.property_id,
+      status: r.status === "completed" ? "resolved" : r.status,
+      dateReported: dbDateStr(r.created_at),
+      dateResolved: r.status === "completed" ? dbDateStr(r.updated_at) : undefined,
+      description: r.description,
+      priority: r.priority,
+    }));
+    const now = new Date();
+    const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const end = now.toISOString().slice(0, 10);
+    const statements = calculateOwnerPayouts(owners, properties, payments, maintenance, start, end);
+
+    // Aggregate per-owner net payout across their properties
+    const totals = new Map<string, { name: string; routing: string; account: string; net: number }>();
+    for (const s of statements) {
+      const owner = ownerRows.find((o) => o.id === s.ownerId);
+      if (!owner) continue;
+      const t = totals.get(s.ownerId) || {
+        name: s.ownerName,
+        routing: owner.routing_number || "",
+        account: owner.account_number || "",
+        net: 0,
+      };
+      t.net += s.netPayout;
+      totals.set(s.ownerId, t);
+    }
+
+    const lines = ["Owner Name,Routing Number,Account Number,Amount"];
+    for (const [, t] of totals) {
+      if (t.net <= 0 || !t.routing || !t.account) continue; // only positive ACH payouts with bank details
+      const name = /[",\n]/.test(t.name) ? `"${t.name.replace(/"/g, '""')}"` : t.name;
+      lines.push(`${name},${t.routing},${t.account},${(t.net / 100).toFixed(2)}`);
+    }
+    return lines.join("\n");
   });
 
 // ── Payment Methods ──
