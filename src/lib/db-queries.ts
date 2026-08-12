@@ -3,7 +3,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
 import { processingFee } from "./fees";
-import { calculateOwnerPayouts } from "./payouts";
+import {
+  calculateOwnerPayouts,
+  type PayoutOwner,
+  type PayoutProperty,
+  type PayoutPayment,
+  type PayoutMaintenance,
+} from "./payouts";
 
 export const DEFAULT_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 const SITE_BASE = "https://www.rentmorevrs.com";
@@ -428,19 +434,141 @@ export const insertPayment = createServerFn()
     return rows[0];
   });
 
-// ── Owner payouts — hybrid v1: record a disbursed payout as a payments row ──
-// The PM clicks "Record payout / Mark paid" once they've disbursed the money
-// from their own bank (ACH file or paper check). This writes a payment_type
-// 'payout' row so financial reporting reconciles. RentMore never moves funds.
-export const recordPayout = createServerFn()
-  .validator((data: { companyId: string; ownerId: string; propertyId?: string; amountCents: number; method: "ach" | "check" | string; period: string; checkNumber?: string }) => data)
+// ── Owner payouts — hybrid v1: DB-backed lifecycle (calculated → pending → paid) ──
+// The PM moves the money from their own bank (ACH export file / paper check);
+// RentMore persists the math + status and records the disbursement as a
+// payment_type 'payout' payments row so reporting reconciles. Never any
+// automated Stripe transfers in v1.
+
+// Shared: compute per-owner/per-property statements from DB rows (cents).
+async function computePayoutStatements(companyId: string, periodStart: string, periodEnd: string) {
+  const [ownerRows, propRows, payRows, maintRows] = await Promise.all([
+    sql()`SELECT id, name, routing_number, account_number, payout_method FROM owners WHERE company_id = ${companyId}::uuid`,
+    sql()`SELECT id, owner_id, name FROM properties WHERE company_id = ${companyId}::uuid`,
+    sql()`SELECT id, property_id, amount_cents, description, status, created_at FROM payments WHERE company_id = ${companyId}::uuid AND payment_type IN ('charge','deposit')`,
+    sql()`SELECT id, property_id, description, priority, status, created_at, updated_at FROM maintenance_requests WHERE company_id = ${companyId}::uuid`,
+  ]);
+  const owners: PayoutOwner[] = ownerRows.map((r) => ({ id: r.id, name: r.name }));
+  const properties: PayoutProperty[] = propRows.map((r) => ({ id: r.id, ownerId: r.owner_id || "", name: r.name }));
+  const payments: PayoutPayment[] = payRows.map((r) => ({
+    id: r.id,
+    propertyId: r.property_id,
+    status: r.status === "completed" ? "paid" : r.status,
+    date: dbDateStr(r.created_at),
+    description: r.description || "Payment",
+    amount: Number(r.amount_cents) || 0,
+  }));
+  const maintenance: PayoutMaintenance[] = maintRows.map((r) => ({
+    id: r.id,
+    propertyId: r.property_id,
+    status: r.status === "completed" ? "resolved" : r.status,
+    dateReported: dbDateStr(r.created_at),
+    dateResolved: r.status === "completed" ? dbDateStr(r.updated_at) : undefined,
+    description: r.description,
+    priority: r.priority,
+  }));
+  const statements = calculateOwnerPayouts(owners, properties, payments, maintenance, periodStart, periodEnd);
+  return statements.map((s) => {
+    const owner = ownerRows.find((o) => o.id === s.ownerId);
+    return {
+      ownerId: s.ownerId,
+      ownerName: s.ownerName,
+      propertyId: s.propertyId,
+      periodStart,
+      periodEnd,
+      grossCents: Math.round(s.grossRevenue * 100),
+      managementFeeCents: Math.round(s.managementFee * 100),
+      maintenanceDeductionsCents: Math.round(s.maintenanceDeductions * 100),
+      netCents: Math.round(s.netPayout * 100),
+      method: owner?.payout_method === "check" ? "check" : "ach",
+    };
+  });
+}
+
+// Persist a computed batch: replaces previous calculated/pending rows for the
+// company+period (paid rows are kept — they're part of the books).
+export const generatePayoutStatements = createServerFn()
+  .validator((data: { companyId: string; periodStart: string; periodEnd: string }) => data)
+  .handler(async ({ data }) => {
+    const statements = await computePayoutStatements(data.companyId, data.periodStart, data.periodEnd);
+    await sql()`
+      DELETE FROM payouts
+      WHERE company_id = ${data.companyId}::uuid
+        AND period_start = ${data.periodStart}::date
+        AND period_end = ${data.periodEnd}::date
+        AND status IN ('calculated','pending')`;
+    for (const s of statements) {
+      await sql()`
+        INSERT INTO payouts (company_id, owner_id, property_id, period_start, period_end,
+                             gross_cents, management_fee_cents, maintenance_deductions_cents,
+                             net_cents, status, method)
+        VALUES (${data.companyId}::uuid, ${s.ownerId}::uuid, ${s.propertyId}::uuid,
+                ${s.periodStart}::date, ${s.periodEnd}::date,
+                ${s.grossCents}, ${s.managementFeeCents}, ${s.maintenanceDeductionsCents},
+                ${s.netCents}, 'calculated', ${s.method})`;
+    }
+    return statements;
+  });
+
+export const fetchPayouts = createServerFn()
+  .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      INSERT INTO payments (company_id, owner_id, property_id, payment_type, method, amount_cents, description, status, check_number)
-      VALUES (${data.companyId}::uuid, ${data.ownerId}::uuid, ${uuidOrNull(data.propertyId)}::uuid, 'payout', ${data.method}, ${data.amountCents}, ${`Owner payout — ${data.period}`}, 'completed', ${data.checkNumber || null})
-      RETURNING id, created_at
-    `;
-    return rows[0] ? { id: rows[0].id, createdAt: rows[0].created_at } : null;
+      SELECT p.id, p.owner_id, o.name AS owner_name, p.property_id, p.period_start, p.period_end,
+             p.gross_cents, p.management_fee_cents, p.maintenance_deductions_cents, p.net_cents,
+             p.status, p.method, p.paid_at, p.created_at
+      FROM payouts p
+      LEFT JOIN owners o ON o.id = p.owner_id
+      WHERE p.company_id = ${data.companyId}::uuid
+      ORDER BY p.created_at DESC`;
+    return rows.map(jsonSafe);
+  });
+
+export const updatePayoutStatusDB = createServerFn()
+  .validator((data: { companyId: string; payoutId: string; status: "calculated" | "pending" }) => data)
+  .handler(async ({ data }) => {
+    await sql()`
+      UPDATE payouts SET status = ${data.status}
+      WHERE id = ${data.payoutId}::uuid AND company_id = ${data.companyId}::uuid`;
+    return { ok: true };
+  });
+
+// Mark a payout disbursed: status → paid + insert the reconciling payments row.
+// Neon v1 transactions take a sync callback returning an array of queries, all
+// executed in one transaction — the INSERT pulls from the payouts row (guarded
+// by status <> 'paid') so it's atomic and idempotent without cross-query values.
+export const recordPayoutPaid = createServerFn()
+  .validator((data: { companyId: string; payoutId: string }) => data)
+  .handler(async ({ data }) => {
+    const [rows, paymentRows, _updated] = await sql().transaction((tx) => [
+      tx`
+        SELECT owner_id, property_id, net_cents, method, period_start, period_end, status
+        FROM payouts WHERE id = ${data.payoutId}::uuid AND company_id = ${data.companyId}::uuid`,
+      tx`
+        INSERT INTO payments (company_id, owner_id, property_id, payment_type, method, amount_cents, description, status)
+        SELECT company_id, owner_id, property_id, 'payout', method, net_cents,
+               'Owner payout — ' || period_start::text || ' to ' || period_end::text, 'completed'
+        FROM payouts
+        WHERE id = ${data.payoutId}::uuid AND company_id = ${data.companyId}::uuid AND status <> 'paid'
+        RETURNING id, created_at`,
+      tx`
+        UPDATE payouts SET status = 'paid', paid_at = NOW()
+        WHERE id = ${data.payoutId}::uuid AND company_id = ${data.companyId}::uuid AND status <> 'paid'`,
+    ]);
+    const p = rows[0];
+    if (!p) throw new Error("Payout not found");
+    if (!paymentRows.length) return { alreadyPaid: true }; // idempotent — no-op on a paid payout
+    return {
+      payoutId: data.payoutId,
+      paymentId: paymentRows[0].id,
+      createdAt: paymentRows[0].created_at,
+      ownerId: p.owner_id,
+      propertyId: p.property_id ?? "",
+      amountCents: Number(p.net_cents),
+      method: p.method,
+      periodStart: dbDateStr(p.period_start),
+      periodEnd: dbDateStr(p.period_end),
+    };
   });
 
 // ── Stripe Connect (Option A — separate charges, RentMore never merchant of record) ──
@@ -719,11 +847,13 @@ export const updateOwner = createServerFn()
 export const deleteOwnerDB = createServerFn()
   .validator((data: { companyId: string; ownerId: string }) => data)
   .handler(async ({ data }) => {
-    // Financial integrity: an owner with recorded payouts cannot be deleted —
-    // the payout history is part of the company's books. Surface a clear error.
+    // Financial integrity: an owner with recorded payout history cannot be
+    // deleted — the statements are part of the company's books.
     const payoutRows = await sql()`
+      SELECT 1 FROM payouts WHERE owner_id = ${data.ownerId}::uuid AND company_id = ${data.companyId}::uuid LIMIT 1`;
+    const paymentRows = await sql()`
       SELECT 1 FROM payments WHERE owner_id = ${data.ownerId}::uuid AND company_id = ${data.companyId}::uuid LIMIT 1`;
-    if (payoutRows.length) {
+    if (payoutRows.length || paymentRows.length) {
       throw new Error("This owner has recorded payouts and cannot be deleted. Keep the owner record for your books.");
     }
     // Unlink properties first (properties.owner_id FK has no ON DELETE CASCADE).
@@ -737,61 +867,37 @@ export const deleteOwnerDB = createServerFn()
 
 // ── Owner payouts — hybrid v1: ACH-list CSV export (NO money movement) ──
 // The PM uploads this file to their own bank's bill-pay/ACH screen. RentMore
-// never transmits it and never touches owner funds. Amount = each owner's net
-// payout for the current calendar month, from the shared payout engine.
+// never transmits it and never touches owner funds. Reads the persisted batch
+// (calculated + pending ACH rows) so the file matches what's on screen.
 export const generateAchListExport = createServerFn()
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
-    const [ownerRows, propRows, payRows, maintRows] = await Promise.all([
-      sql()`SELECT id, name, routing_number, account_number, payout_method FROM owners WHERE company_id = ${data.companyId}::uuid`,
-      sql()`SELECT id, owner_id, name FROM properties WHERE company_id = ${data.companyId}::uuid`,
-      sql()`SELECT id, property_id, amount_cents, description, status, created_at FROM payments WHERE company_id = ${data.companyId}::uuid AND payment_type IN ('charge','deposit')`,
-      sql()`SELECT id, property_id, description, priority, status, created_at, updated_at FROM maintenance_requests WHERE company_id = ${data.companyId}::uuid`,
-    ]);
-    const owners: PayoutOwner[] = ownerRows.map((r) => ({ id: r.id, name: r.name }));
-    const properties: PayoutProperty[] = propRows.map((r) => ({ id: r.id, ownerId: r.owner_id || "", name: r.name }));
-    const payments: PayoutPayment[] = payRows.map((r) => ({
-      id: r.id,
-      propertyId: r.property_id,
-      status: r.status === "completed" ? "paid" : r.status,
-      date: dbDateStr(r.created_at),
-      description: r.description || "Payment",
-      amount: Number(r.amount_cents) || 0,
-    }));
-    const maintenance: PayoutMaintenance[] = maintRows.map((r) => ({
-      id: r.id,
-      propertyId: r.property_id,
-      status: r.status === "completed" ? "resolved" : r.status,
-      dateReported: dbDateStr(r.created_at),
-      dateResolved: r.status === "completed" ? dbDateStr(r.updated_at) : undefined,
-      description: r.description,
-      priority: r.priority,
-    }));
-    const now = new Date();
-    const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-    const end = now.toISOString().slice(0, 10);
-    const statements = calculateOwnerPayouts(owners, properties, payments, maintenance, start, end);
+    const rows = await sql()`
+      SELECT p.owner_id, p.net_cents, p.period_start, p.period_end,
+             o.name, o.routing_number, o.account_number
+      FROM payouts p
+      JOIN owners o ON o.id = p.owner_id
+      WHERE p.company_id = ${data.companyId}::uuid
+        AND p.status IN ('calculated','pending')
+        AND p.method = 'ach'
+        AND p.net_cents > 0
+      ORDER BY o.name`;
 
-    // Aggregate per-owner net payout across their properties (ACH owners only —
-    // check owners get printable check stubs instead of a bank file).
-    const totals = new Map<string, { name: string; routing: string; account: string; method: string; net: number }>();
-    for (const s of statements) {
-      const owner = ownerRows.find((o) => o.id === s.ownerId);
-      if (!owner) continue;
-      const t = totals.get(s.ownerId) || {
-        name: s.ownerName,
-        routing: owner.routing_number || "",
-        account: owner.account_number || "",
-        method: owner.payout_method || "ach",
+    // Aggregate per owner (one line per owner in the bank file).
+    const totals = new Map<string, { name: string; routing: string; account: string; net: number }>();
+    for (const r of rows) {
+      const t = totals.get(r.owner_id) || {
+        name: r.name || "",
+        routing: r.routing_number || "",
+        account: r.account_number || "",
         net: 0,
       };
-      t.net += s.netPayout;
-      totals.set(s.ownerId, t);
+      t.net += Number(r.net_cents) || 0;
+      totals.set(r.owner_id, t);
     }
 
     const lines = ["Owner Name,Routing Number,Account Number,Amount"];
     for (const [, t] of totals) {
-      if (t.method !== "ach") continue; // ACH export only — checks are printed, not uploaded
       if (t.net <= 0 || !t.routing || !t.account) continue; // only positive ACH payouts with bank details
       const name = /[",\n]/.test(t.name) ? `"${t.name.replace(/"/g, '""')}"` : t.name;
       lines.push(`${name},${t.routing},${t.account},${(t.net / 100).toFixed(2)}`);

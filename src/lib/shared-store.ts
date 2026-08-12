@@ -541,58 +541,30 @@ export async function deleteOwner(id: string): Promise<{ ok: boolean; error?: st
     return { ok: false, error: e instanceof Error ? e.message : "Delete failed" };
   }
 }
-/** Hybrid v1 "Record payout / Mark paid": writes a payment_type 'payout' row so reporting reconciles. */
-export async function recordPayout(op: {
-  ownerId: string; propertyId: string; amountCents: number; method: "ACH" | "check"; period: string;
-}): Promise<{ id: string } | null> {
-  try {
-    const { recordPayout } = await import("./db-queries");
-    const res = await recordPayout({ data: {
-      companyId: state.companyId, ownerId: op.ownerId, propertyId: op.propertyId,
-      amountCents: op.amountCents,
-      method: op.method === "check" ? "check" : "ach",
-      period: op.period,
-    }});
-    if (!res) return null;
-    const entry: Payment = {
-      id: res.id, propertyId: op.propertyId, tenantId: "",
-      amount: op.amountCents / 100,
-      date: String(res.createdAt || new Date().toISOString()).slice(0, 10),
-      dueDate: String(res.createdAt || new Date().toISOString()).slice(0, 10),
-      status: "paid", method: op.method === "check" ? "check" : "ach",
-      description: `Owner payout — ${op.period}`,
-      ownerId: op.ownerId, paymentType: "payout",
-    };
-    state.payments.unshift(entry); notify();
-    // Keep the legacy ownerPayouts list in sync (reports + owner portal read it).
-    state.ownerPayouts.unshift({
-      id: res.id, ownerId: op.ownerId, propertyId: op.propertyId, period: op.period,
-      amount: op.amountCents / 100, status: "paid",
-      datePaid: String(res.createdAt || new Date().toISOString()).slice(0, 10),
-      method: op.method === "check" ? "check" : "ACH",
-    });
-    notify();
-    return { id: res.id };
-  } catch {
-    // DB unavailable (demo mode) — keep an in-memory row so the UI still works.
-    const entry: Payment = {
-      id: crypto.randomUUID(), propertyId: op.propertyId, tenantId: "",
-      amount: op.amountCents / 100,
-      date: new Date().toISOString().slice(0, 10), dueDate: new Date().toISOString().slice(0, 10),
-      status: "paid", method: op.method === "check" ? "check" : "ach",
-      description: `Owner payout — ${op.period}`,
-      ownerId: op.ownerId, paymentType: "payout",
-    };
-    state.payments.unshift(entry); notify();
-    state.ownerPayouts.unshift({
-      id: entry.id, ownerId: op.ownerId, propertyId: op.propertyId, period: op.period,
-      amount: op.amountCents / 100, status: "paid",
-      datePaid: new Date().toISOString().slice(0, 10),
-      method: op.method === "check" ? "check" : "ACH",
-    });
-    notify();
-    return { id: entry.id };
-  }
+/** Hybrid v1 store sync: after recordPayoutPaid server fn writes the payments row,
+ *  push the same entry into the store so the UI updates instantly (no extra DB call). */
+export function pushPaidPayout(entry: {
+  id: string; ownerId: string; propertyId: string; amountCents: number;
+  method: "ach" | "check"; periodStart: string; periodEnd: string; datePaid: string;
+}): void {
+  const method = entry.method === "check" ? "check" : "ACH";
+  const paymentEntry: Payment = {
+    id: entry.id, propertyId: entry.propertyId, tenantId: "",
+    amount: entry.amountCents / 100,
+    date: entry.datePaid, dueDate: entry.datePaid,
+    status: "paid", method,
+    description: `Owner payout — ${entry.periodStart} to ${entry.periodEnd}`,
+    ownerId: entry.ownerId, paymentType: "payout",
+  };
+  state.payments.unshift(paymentEntry); notify();
+  state.ownerPayouts.unshift({
+    id: entry.id, ownerId: entry.ownerId, propertyId: entry.propertyId,
+    period: `${entry.periodStart} to ${entry.periodEnd}`,
+    amount: entry.amountCents / 100, status: "paid",
+    datePaid: entry.datePaid,
+    method: entry.method === "check" ? "check" : "ACH",
+  });
+  notify();
 }
 export function addStoredPaymentMethod(method: Omit<PaymentMethodEntry, "id">): PaymentMethodEntry {
   const entry: PaymentMethodEntry = { ...method, id: crypto.randomUUID() };

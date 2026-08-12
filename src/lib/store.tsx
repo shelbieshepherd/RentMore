@@ -11,7 +11,7 @@ import {
   updatePropertyGuide,
   addVendor, updateVendor, deleteVendor,
   addVendorPayout, updateVendorPayout,
-  addOwnerCharge, addOwner, updateOwner, deleteOwner, recordPayout,
+  addOwnerCharge, addOwner, updateOwner, deleteOwner, pushPaidPayout,
   addStoredPaymentMethod, removeStoredPaymentMethod,
   addOwnerPayout, updateOwnerPayout,
   setCompanyId,
@@ -47,7 +47,7 @@ interface StoreActions {
   addOwner: typeof addOwner;
   updateOwner: typeof updateOwner;
   deleteOwner: typeof deleteOwner;
-  recordPayout: typeof recordPayout;
+  pushPaidPayout: typeof pushPaidPayout;
   addOwnerPayout: typeof addOwnerPayout;
   updateOwnerPayout: typeof updateOwnerPayout;
   addStoredPaymentMethod: typeof addStoredPaymentMethod;
@@ -80,7 +80,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updatePropertyGuide,
       addVendor, updateVendor, deleteVendor,
       addVendorPayout, updateVendorPayout,
-      addOwnerCharge, addOwner, updateOwner, deleteOwner, recordPayout,
+      addOwnerCharge, addOwner, updateOwner, deleteOwner, pushPaidPayout,
       addOwnerPayout, updateOwnerPayout,
       addStoredPaymentMethod, removeStoredPaymentMethod,
       setCompanyId,
