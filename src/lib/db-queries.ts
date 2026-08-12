@@ -621,7 +621,7 @@ export const fetchVendors = createServerFn()
       phone: v.phone || "", serviceTypes: (() => { try { return JSON.parse(v.service_types || "[]"); } catch { return []; } })(),
       achInfo: { bankName: v.ach_bank_name || "", routingNumber: v.ach_routing_number || "", accountNumber: v.ach_account_number || "" },
       mailingAddress: (v.mail_street || v.mail_city) ? { street: v.mail_street || "", city: v.mail_city || "", state: v.mail_state || "", zip: v.mail_zip || "" } : undefined,
-      notes: v.notes || "", createdAt: String(v.created_at || "").slice(0, 10),
+      notes: v.notes || "", createdAt: dbDateStr(v.created_at),
     }));
   });
 
@@ -671,7 +671,7 @@ export const fetchHousekeeping = createServerFn()
     const rows = await sql()`SELECT * FROM housekeeping_tasks WHERE company_id = ${data.companyId}::uuid ORDER BY due_date ASC`;
     return rows.map((h: any) => ({
       id: h.id, propertyId: h.property_id, description: h.description, status: h.status,
-      priority: h.priority, assignedTo: h.assigned_to || "", dueDate: String(h.due_date || "").slice(0, 10),
+      priority: h.priority, assignedTo: h.assigned_to || "", dueDate: dbDateStr(h.due_date),
       window: h.time_window || "", verifiedBy: h.verified_by || undefined,
     }));
   });
@@ -720,8 +720,8 @@ export const fetchCalendarBlocks = createServerFn()
   .handler(async ({ data }) => {
     const rows = await sql()`SELECT * FROM calendar_blocks WHERE company_id = ${data.companyId}::uuid ORDER BY start_date ASC`;
     return rows.map((b: any) => ({
-      id: b.id, propertyId: b.property_id, type: b.type, startDate: String(b.start_date).slice(0, 10),
-      endDate: String(b.end_date).slice(0, 10), title: b.title || "",
+      id: b.id, propertyId: b.property_id, type: b.type, startDate: dbDateStr(b.start_date),
+      endDate: dbDateStr(b.end_date), title: b.title || "",
       color: b.type === "maintenance" ? "#ef4444" : b.type === "lease" ? "#3b82f6" : b.type === "booking" ? "#22c55e" : "#8b5cf6",
     }));
   });
@@ -751,7 +751,7 @@ export const fetchDocuments = createServerFn()
     return rows.map((d: any) => ({
       id: d.id, propertyId: d.property_id || undefined, type: d.type || "lease", title: d.title,
       status: d.status, recipientName: d.recipient_name || "", recipientEmail: d.recipient_email || "",
-      content: d.content || "", createdAt: String(d.created_at || "").slice(0, 10),
+      content: d.content || "", createdAt: dbDateStr(d.created_at),
     }));
   });
 
@@ -793,6 +793,13 @@ export const deleteDocumentDB = createServerFn()
   });
 
 // ── Helpers ──
+function dbDateStr(v: any): string {
+  if (!v) return "";
+  const d = v instanceof Date ? v : new Date(v);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  const s = String(v);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
 function camelToSnake(str: string): string {
   return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
