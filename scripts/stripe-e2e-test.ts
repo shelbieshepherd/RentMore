@@ -77,9 +77,14 @@ if (!CONNECT_ACCT) {
 BLOCKED: Fresh New Co has no Stripe Connect account on the current platform
 (DB stripe_connect_account_id is NULL — the old acct_1U3aRHGrO5c9vPRg belonged
 to the retired sandbox).
-One-time owner action (~1 min): login fresh-0810@test.com → Settings → Payments →
-"Connect Stripe" (creates the account on the new platform) → then re-run this
-harness; it will stop at the hCaptcha onboarding step if still needed.`);
+Test-mode setup (ONE time, ~1 min, must use a TEST key — the live site UI uses
+live keys and would create a LIVE account):
+  source /etc/profile.d/cto-env-vars.sh
+  STRIPE_SECRET_KEY="$STRIPE_SECRET_KEY" bun run scripts/migrate-create-connect-acct.ts
+which mirrors the app's createConnectAccount + getOnboardingLink, saves the new
+acct id to the DB and prints an Express onboarding URL. Complete that URL's
+hCaptcha step (test phone, SSN 000-00-0000, bank 000123456789), then re-run this
+harness — it will stop again only if onboarding is still incomplete.`);
   process.exit(2);
 }
 const acct = await stripe.accounts.retrieve(CONNECT_ACCT);
