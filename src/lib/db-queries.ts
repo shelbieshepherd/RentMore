@@ -545,6 +545,10 @@ export const createCheckoutSession = createServerFn()
     return { url: session.url, sessionId: session.id, feeCents };
   });
 
+// Guest-portal booking lookup: resolves by reservation number OR booking UUID
+// (email guest links use the booking id; guest links may also carry the
+// reservation number). Returns the booking plus the property fields the guest
+// portal renders (name/address/image/type/house rules/check-in-out).
 export const fetchBookingByReservationNumber = createServerFn()
   .validator((data: { reservationNumber: string }) => data)
   .handler(async ({ data }) => {
@@ -552,10 +556,13 @@ export const fetchBookingByReservationNumber = createServerFn()
       SELECT b.id, b.company_id, b.property_id, b.guest_name, b.guest_email, b.guest_phone,
              b.guest_address, b.start_date, b.end_date, b.nightly_rate, b.status,
              b.total_amount, b.reservation_number, b.deposit_collected_cents, b.created_at,
-             p.name AS property_name
+             p.name AS property_name, p.address AS property_address,
+             p.image_url AS property_image, p.property_type AS property_type,
+             p.house_rules AS property_house_rules, p.check_in_time AS check_in_time,
+             p.check_out_time AS check_out_time
       FROM bookings b
       JOIN properties p ON p.id = b.property_id
-      WHERE b.reservation_number = ${data.reservationNumber}
+      WHERE b.reservation_number = ${data.reservationNumber} OR b.id::text = ${data.reservationNumber}
       LIMIT 1
     `;
     return rows[0] ? jsonSafe(rows[0]) : null;

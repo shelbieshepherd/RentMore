@@ -62,7 +62,9 @@ function PaymentsPage() {
   // checkout state
   const [checkoutPayment, setCheckoutPayment] = useState<string | null>(null);
   const [checkoutMethod, setCheckoutMethod] = useState<PaymentMethod>("credit card");
-  const [checkoutStep, setCheckoutStep] = useState<"select" | "processing" | "done">("select");
+  const [checkoutStep, setCheckoutStep] = useState<"select" | "processing" | "done" | "started">("select");
+  const [checkoutError, setCheckoutError] = useState("");
+  const [payNotice, setPayNotice] = useState("");
 
   // record-payment form state
   const [showRecordModal, setShowRecordModal] = useState(false);
@@ -98,6 +100,16 @@ function PaymentsPage() {
       cancelled = true;
     };
   }, [companyId]);
+
+  // Checkout return banners (success/cancel URLs point back here with ?checkout=…)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") {
+      setPayNotice("Payment completed in Stripe — it will be confirmed in the list shortly.");
+    } else if (params.get("checkout") === "cancelled") {
+      setPayNotice("Payment was not completed — the payment is still pending. You can try again anytime.");
+    }
+  }, []);
 
   const enableConnect = async () => {
     if (!companyId || connectBusy) return;
@@ -183,14 +195,57 @@ function PaymentsPage() {
   const totalOverdue = payments.filter((p) => p.status === "overdue").reduce((s, p) => s + p.amount, 0);
 
   // ── checkout helpers ──
+  const onlineReady = !!(connect && !connect.isDemo && connect.onboardingComplete);
+
   const openCheckout = (payId: string) => {
+    // Real company that hasn't enabled online payments → point them at onboarding / manual record.
+    if (connect && !connect.isDemo && !connect.onboardingComplete) {
+      setPayNotice("Online payments aren't enabled for this account yet — enable them in Settings → Payments, or record the payment manually.");
+      return;
+    }
     setCheckoutPayment(payId);
     setCheckoutMethod("credit card");
     setCheckoutStep("select");
+    setCheckoutError("");
   };
 
-  const processCheckout = () => {
+  const processCheckout = async () => {
     if (!checkoutPayment) return;
+    const pay = payments.find((p) => p.id === checkoutPayment);
+    if (!pay) return;
+
+    // Real Stripe path (onboarded company): open hosted Checkout on the connected
+    // account, mark the row pending. The completed state arrives via the
+    // payment_intent.succeeded webhook (Chunk D) — we never fake it here.
+    if (onlineReady && checkoutMethod !== "check") {
+      setCheckoutStep("processing");
+      setCheckoutError("");
+      try {
+        const { createCheckoutSession } = await import("~/lib/db-queries");
+        const result = await createCheckoutSession({
+          data: {
+            companyId: companyId!,
+            amountCents: Math.round(pay.amount * 100),
+            paymentType: pay.description?.toLowerCase().includes("deposit") ? "deposit" : "charge",
+            method: checkoutMethod === "ACH" ? "ach" : "card",
+          },
+        });
+        if (result.mock || !result.url) {
+          updatePaymentStatus(checkoutPayment, "paid");
+          setCheckoutStep("done");
+          return;
+        }
+        updatePaymentStatus(checkoutPayment, "pending");
+        window.open(result.url, "_blank", "noopener");
+        setCheckoutStep("started");
+      } catch (e: any) {
+        setCheckoutError(e?.message || "Could not start online payment. Try again or record the payment manually.");
+        setCheckoutStep("select");
+      }
+      return;
+    }
+
+    // Demo / manual (check) path — mock processing keeps demoability.
     setCheckoutStep("processing");
     setTimeout(() => {
       updatePaymentStatus(checkoutPayment, "paid");
@@ -201,6 +256,7 @@ function PaymentsPage() {
   const closeCheckout = () => {
     setCheckoutPayment(null);
     setCheckoutStep("select");
+    setCheckoutError("");
   };
 
   const checkoutPay = checkoutPayment ? payments.find((p) => p.id === checkoutPayment) : null;
@@ -267,6 +323,16 @@ function PaymentsPage() {
               style={{ backgroundColor: br }}
             >
               {connectBusy ? "Opening…" : connect.accountId ? "Resume onboarding" : "Enable online payments"}
+            </button>
+          </div>
+        )}
+
+        {/* Payment notice (checkout returns / not-enabled info) */}
+        {payNotice && (
+          <div className="card flex items-center justify-between gap-3 flex-wrap" style={{ borderLeft: "4px solid #b45309" }}>
+            <p className="text-sm text-gray-700 flex-1 min-w-[240px]">{payNotice}</p>
+            <button onClick={() => setPayNotice("")} className="text-gray-400 hover:text-gray-600 text-lg leading-none" aria-label="Dismiss">
+              &times;
             </button>
           </div>
         )}
@@ -606,10 +672,12 @@ function PaymentsPage() {
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
                   {checkoutStep === "processing"
-                    ? "Processing..."
+                    ? "Opening secure checkout…"
                     : checkoutStep === "done"
                       ? "Payment Complete!"
-                      : "Checkout"}
+                      : checkoutStep === "started"
+                        ? "Payment started"
+                        : "Checkout"}
                 </h2>
                 {checkoutStep !== "processing" && (
                   <button onClick={closeCheckout} className="text-gray-400 hover:text-gray-600 text-xl">
@@ -620,6 +688,9 @@ function PaymentsPage() {
 
               {checkoutStep === "select" && (
                 <div className="p-6 space-y-4">
+                  {checkoutError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">{checkoutError}</div>
+                  )}
                   <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Description</span>
@@ -633,7 +704,7 @@ function PaymentsPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setCheckoutMethod("credit card")}
                         className={`p-3 border rounded-lg text-left transition-all ${
@@ -658,18 +729,25 @@ function PaymentsPage() {
                         <p className="text-sm font-medium">ACH Transfer</p>
                         <p className="text-xs text-gray-400 mt-0.5">1% + $0.25</p>
                       </button>
-                      <button
-                        onClick={() => setCheckoutMethod("check")}
-                        className={`p-3 border rounded-lg text-left transition-all ${
-                          checkoutMethod === "check"
-                            ? "border-[#0f3c52] bg-blue-50"
-                            : "border-gray-200 hover:border-gray-300"
-                        }`}
-                      >
-                        <div className="text-xl mb-1">📝</div>
-                        <p className="text-sm font-medium">Check</p>
-                        <p className="text-xs text-gray-400 mt-0.5">No fee</p>
-                      </button>
+                      {!onlineReady && (
+                        <button
+                          onClick={() => setCheckoutMethod("check")}
+                          className={`p-3 border rounded-lg text-left transition-all ${
+                            checkoutMethod === "check"
+                              ? "border-[#0f3c52] bg-blue-50"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                        >
+                          <div className="text-xl mb-1">📝</div>
+                          <p className="text-sm font-medium">Check</p>
+                          <p className="text-xs text-gray-400 mt-0.5">No fee</p>
+                        </button>
+                      )}
+                      {onlineReady && (
+                        <div className="col-span-2 p-3 border border-dashed border-gray-200 rounded-lg text-xs text-gray-400">
+                          📝 Checks aren't processed online — record them manually with <strong>Record Payment</strong>.
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -685,13 +763,18 @@ function PaymentsPage() {
                       <span>{formatCurrency(checkoutFee)}</span>
                     </div>
                     <div className="flex justify-between text-base font-semibold border-t pt-2">
-                      <span>Total</span>
-                      <span>{formatCurrency(checkoutPay.amount + checkoutFee)}</span>
+                      <span>{onlineReady ? "Total Charged to Payer" : "Total"}</span>
+                      <span>{formatCurrency(onlineReady ? checkoutPay.amount : checkoutPay.amount + checkoutFee)}</span>
                     </div>
+                    {onlineReady && (
+                      <p className="text-xs text-gray-400">
+                        The {formatCurrency(checkoutFee)} RentMore platform fee is deducted from your proceeds — it is not added to the payer's total.
+                      </p>
+                    )}
                   </div>
 
                   <button onClick={processCheckout} className="btn-accent w-full py-3 text-base">
-                    Proceed to Payment — {formatCurrency(checkoutPay.amount + checkoutFee)}
+                    {onlineReady ? "Open Secure Checkout" : `Proceed to Payment — ${formatCurrency(checkoutPay.amount + checkoutFee)}`}
                   </button>
                 </div>
               )}
@@ -699,7 +782,23 @@ function PaymentsPage() {
               {checkoutStep === "processing" && (
                 <div className="p-12 text-center">
                   <div className="animate-spin inline-block w-10 h-10 border-4 border-gray-200 border-t-[#0f3c52] rounded-full mb-4" />
-                  <p className="text-gray-500">Processing your payment...</p>
+                  <p className="text-gray-500">
+                    {onlineReady ? "Opening secure checkout…" : "Processing your payment..."}
+                  </p>
+                </div>
+              )}
+
+              {checkoutStep === "started" && (
+                <div className="p-6 space-y-4 text-center">
+                  <div className="text-4xl mb-2">💳</div>
+                  <p className="text-lg font-medium text-gray-900">Secure checkout opened</p>
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    Complete the payment in the Stripe window that just opened. This payment is marked{" "}
+                    <strong>pending</strong> and will update automatically once Stripe confirms it.
+                  </p>
+                  <button onClick={closeCheckout} className="btn-primary w-full text-sm">
+                    Done
+                  </button>
                 </div>
               )}
 

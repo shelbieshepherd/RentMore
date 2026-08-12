@@ -262,7 +262,7 @@ function parseBedConfig(raw: unknown): { type: string; count: number }[] | undef
 function mapDbPayment(p: any): Payment {
   return {
     id: p.id, propertyId: p.property_id || "", tenantId: p.tenant_id || p.booking_id || "",
-    amount: Number(p.amount_cents),
+    amount: Number(p.amount_cents) / 100, // DB stores cents; UI amounts are dollars
     date: String(p.created_at).slice(0, 10), dueDate: String(p.created_at).slice(0, 10),
     status: p.status === "completed" ? "paid" : p.status === "pending" ? "pending" : "overdue",
     method: p.method as Payment["method"], description: p.description || "",

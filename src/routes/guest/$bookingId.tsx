@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStore } from "~/lib/store";
-import { getImageSrc } from "~/lib/data";
+import { getImageSrc, formatCurrency } from "~/lib/data";
 import { getGuestDoorCode } from "~/lib/door-codes";
 import type { Booking, PropertyGuide } from "~/lib/data";
 import { addMaintenanceRequest } from "~/lib/shared-store";
 import { queueEmail } from "~/lib/email";
 import { classifyMessage, generateAutoReply, generateStaffNotification, maintenanceCategoryLabel } from "~/lib/triage";
+import { depositFor, balanceDueDate, DEPOSIT_PER_BLOCK_CENTS } from "~/lib/payment-policy";
 
 const MANAGER_EMAIL = "manager@rentmore.com";
 const MANAGER_PHONE = "(555) 123-4567";
@@ -17,12 +18,118 @@ export const Route = createFileRoute("/guest/$bookingId")({
   component: GuestPortal,
 });
 
+/** Booking fields the portal renders (subset of the DB booking row). */
+interface PortalBooking {
+  id: string;
+  companyId?: string;
+  propertyId: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone?: string;
+  startDate: string;
+  endDate: string;
+  nightlyRate: number;
+  totalAmount: number;
+  reservationNumber: string;
+  depositCollectedCents: number;
+}
+interface PortalProperty {
+  id: string;
+  name: string;
+  address: string;
+  type: "short-term" | "long-term";
+  images: string[];
+  houseRules?: string[];
+  checkInTime?: string;
+  checkOutTime?: string;
+}
+
+function safeJsonArr(raw: unknown): string[] | undefined {
+  if (typeof raw !== "string") return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function GuestPortal() {
   const params = Route.useParams();
   const store = useStore();
-  const booking = store.bookings.find(b => b.id === params.bookingId);
-  const property = booking ? store.properties.find(p => p.id === booking.propertyId) : undefined;
-  const guide = property ? store.propertyGuides.find(g => g.propertyId === property.id) : undefined;
+  const storeBooking = store.bookings.find((b) => b.id === params.bookingId);
+  const storeProperty = storeBooking
+    ? store.properties.find((p) => p.id === storeBooking.propertyId)
+    : undefined;
+  const storeGuide = storeProperty
+    ? store.propertyGuides.find((g) => g.propertyId === storeProperty.id)
+    : undefined;
+
+  // DB resolution for real companies (guests aren't authenticated, so the store
+  // only carries demo/seed data — real bookings come from the DB by reservation
+  // number or booking id). Demo stays on the store path.
+  const [dbBooking, setDbBooking] = useState<PortalBooking | null>(null);
+  const [dbProperty, setDbProperty] = useState<PortalProperty | null>(null);
+  const [connect, setConnect] = useState<{ accountId: string | null; onboardingComplete: boolean; isDemo: boolean } | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { fetchBookingByReservationNumber, fetchConnectStatus } = await import("~/lib/db-queries");
+        const b = await fetchBookingByReservationNumber({ data: { reservationNumber: params.bookingId } });
+        if (cancelled) return;
+        if (b) {
+          setDbBooking({
+            id: b.id,
+            companyId: b.company_id,
+            propertyId: b.property_id,
+            guestName: b.guest_name,
+            guestEmail: b.guest_email,
+            guestPhone: b.guest_phone || undefined,
+            startDate: String(b.start_date).slice(0, 10),
+            endDate: String(b.end_date).slice(0, 10),
+            nightlyRate: Number(b.nightly_rate),
+            totalAmount: Number(b.total_amount),
+            reservationNumber: b.reservation_number,
+            depositCollectedCents: b.deposit_collected_cents ? Number(b.deposit_collected_cents) : 0,
+          });
+          setDbProperty({
+            id: b.property_id,
+            name: b.property_name,
+            address: b.property_address || "",
+            type: b.property_type === "short_term" ? "short-term" : "long-term",
+            images: b.property_image ? [b.property_image] : [],
+            houseRules: safeJsonArr(b.property_house_rules),
+            checkInTime: b.check_in_time || undefined,
+            checkOutTime: b.check_out_time || undefined,
+          });
+          try {
+            const st = await fetchConnectStatus({ data: { companyId: b.company_id } });
+            if (!cancelled) setConnect(st);
+          } catch {
+            /* connect status is best-effort — the pay buttons degrade gracefully */
+          }
+        } else if (!storeBooking) {
+          setNotFound(true);
+        }
+      } catch {
+        // DB unavailable — fall back to store (demo) resolution below.
+        if (!storeBooking) setNotFound(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params.bookingId, storeBooking]);
+
+  // Merged view model: DB wins where present, store fills the gaps (demo).
+  const booking: (Booking & Partial<PortalBooking>) | undefined = dbBooking
+    ? { ...(storeBooking as Booking), ...dbBooking }
+    : storeBooking;
+  const property = dbProperty ? { ...storeProperty, ...dbProperty } : storeProperty;
+  const guide = storeGuide;
 
   if (!booking || !property) {
     return (
@@ -30,7 +137,11 @@ function GuestPortal() {
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
           <div className="text-5xl mb-4">🏚️</div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">Booking Not Found</h1>
-          <p className="text-gray-500 text-sm">We couldn't find this reservation. Please check your link or contact us at <a href={`${BASE_URL}/contact`} className="text-blue-600 underline">our contact page</a>.</p>
+          <p className="text-gray-500 text-sm">
+            {notFound ? "We couldn't find this reservation in our system. " : "We couldn't find this reservation. "}
+            Please check your link or contact us at{" "}
+            <a href={`${BASE_URL}/contact`} className="text-blue-600 underline">our contact page</a>.
+          </p>
         </div>
       </div>
     );
@@ -38,6 +149,18 @@ function GuestPortal() {
 
   const nights = Math.ceil((new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime()) / 86400000);
   const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+  // ── Payment math (short-term policy: $500 non-refundable deposit per 7-day
+  //    block due at booking; remainder due 30 days before check-in) ──
+  const isShortTerm = property.type === "short-term";
+  const totalCents = Math.round(booking.totalAmount * 100);
+  const depositCents = depositFor(nights);
+  const collected = Math.min(booking.depositCollectedCents || 0, totalCents);
+  const depositPaidCents = Math.min(collected, depositCents);
+  const depositDueCents = Math.max(0, depositCents - depositPaidCents);
+  const balancePaidCents = Math.max(0, collected - depositCents);
+  const balanceDueCents = Math.max(0, totalCents - depositCents - balancePaidCents);
+  const balanceDue = balanceDueDate(booking.startDate);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -64,11 +187,26 @@ function GuestPortal() {
           <div className="grid grid-cols-2 gap-3">
             <DoorCodeCard booking={booking} guide={guide} />
             <WifiCard network={guide?.wifiName} password={guide?.wifiPassword} />
-            <QuickCard icon="🕐" label="Check-in" value={guide?.checkInTime || "3:00 PM"} />
-            <QuickCard icon="🏁" label="Checkout" value={guide?.checkoutTime || "11:00 AM"} />
+            <QuickCard icon="🕐" label="Check-in" value={guide?.checkInTime || property.checkInTime || "3:00 PM"} />
+            <QuickCard icon="🏁" label="Checkout" value={guide?.checkoutTime || property.checkOutTime || "11:00 AM"} />
           </div>
         </section>
 
+        {/* ── Section 1b: Payment (short-term stays; deposit at booking, balance due 30d before check-in) ── */}
+        {isShortTerm && (
+          <PaymentCard
+            bookingId={booking.id}
+            companyId={booking.companyId}
+            isDemo={!!(connect && connect.isDemo) || !booking.companyId}
+            onlineReady={!!(connect && !connect.isDemo && connect.onboardingComplete)}
+            totalCents={totalCents}
+            depositCents={depositCents}
+            depositDueCents={depositDueCents}
+            depositPaidCents={depositPaidCents}
+            balanceDueCents={balanceDueCents}
+            balanceDueDate={balanceDue}
+          />
+        )}
         {/* ── Section 2: House Rules (accordion) ── */}
         {guide?.houseRules && guide.houseRules.length > 0 && (
           <section>
@@ -186,6 +324,196 @@ function GuestPortal() {
         </footer>
       </main>
     </div>
+  );
+}
+/* ─── Payment Card (deposit + balance, per payment-policy.ts) ─── */
+function PaymentCard({
+  bookingId,
+  companyId,
+  isDemo,
+  onlineReady,
+  totalCents,
+  depositCents,
+  depositDueCents,
+  depositPaidCents,
+  balanceDueCents,
+  balanceDueDate,
+}: {
+  bookingId: string;
+  companyId?: string;
+  isDemo: boolean;
+  onlineReady: boolean;
+  totalCents: number;
+  depositCents: number;
+  depositDueCents: number;
+  depositPaidCents: number;
+  balanceDueCents: number;
+  balanceDueDate: string;
+}) {
+  const [payMethod, setPayMethod] = useState<"card" | "ach">("card");
+  const [payStep, setPayStep] = useState<"idle" | "starting" | "started" | "mock-done" | "error">("idle");
+  const [payError, setPayError] = useState("");
+  const [doneLabel, setDoneLabel] = useState("");
+  const [notice, setNotice] = useState("");
+  const fmtDate = (d: string) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
+
+  // Return banners from hosted Checkout (?checkout=success | cancelled)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") setNotice("✅ Payment completed — thank you!");
+    else if (params.get("checkout") === "cancelled") setNotice("Payment wasn't completed — you can try again below.");
+  }, []);
+
+  const startPayment = async (target: "deposit" | "balance") => {
+    const amountCents = target === "deposit" ? depositDueCents : balanceDueCents;
+    if (amountCents <= 0) return;
+    setPayStep("starting");
+    setPayError("");
+    setNotice("");
+
+    // Demo path — mock behavior so the demo portal stays demoable.
+    if (isDemo) {
+      setTimeout(() => {
+        setDoneLabel(`${target === "deposit" ? "Deposit" : "Balance"} payment received (demo)`);
+        setPayStep("mock-done");
+      }, 1200);
+      return;
+    }
+    // Real company that hasn't enabled online payments yet.
+    if (!onlineReady) {
+      setPayError("Online payments are being set up for this reservation — please try again soon, or contact the property manager.");
+      setPayStep("idle");
+      return;
+    }
+    try {
+      const { createCheckoutSession } = await import("~/lib/db-queries");
+      const res = await createCheckoutSession({
+        data: {
+          companyId: companyId!,
+          bookingId,
+          amountCents,
+          paymentType: target === "deposit" ? "deposit" : "charge",
+          method: payMethod,
+        },
+      });
+      if (res.mock || !res.url) {
+        setDoneLabel("Payment received (demo mode)");
+        setPayStep("mock-done");
+        return;
+      }
+      window.open(res.url, "_blank", "noopener");
+      setPayStep("started");
+    } catch (e: any) {
+      setPayError(e?.message || "Could not start the payment. Please try again or contact the property manager.");
+      setPayStep("idle");
+    }
+  };
+
+  const busy = payStep === "starting";
+  const canPay = depositDueCents > 0 || balanceDueCents > 0;
+
+  return (
+    <section>
+      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">💳 Payment</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-5 space-y-4">
+          {notice && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800">{notice}</div>
+          )}
+          {payError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">{payError}</div>
+          )}
+          {payStep === "started" && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+              💳 Secure checkout opened in a new tab — complete the payment there. We'll confirm it here once processed.
+            </div>
+          )}
+          {payStep === "mock-done" && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800">
+              ✅ {doneLabel} (demo mode — no real charge was made)
+            </div>
+          )}
+
+          {/* Amount breakdown */}
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Reservation total</span>
+              <span className="font-medium">{formatCurrency(totalCents / 100)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">
+                Non-refundable deposit ({formatCurrency(DEPOSIT_PER_BLOCK_CENTS / 100)} per 7 nights)
+              </span>
+              <span className="font-medium">{formatCurrency(depositCents / 100)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Balance due {balanceDueDate ? `by ${fmtDate(balanceDueDate)}` : ""}</span>
+              <span className="font-medium">{formatCurrency(balanceDueCents / 100)}</span>
+            </div>
+            {depositPaidCents > 0 && (
+              <div className="flex justify-between text-emerald-600">
+                <span>Deposit paid</span>
+                <span>{formatCurrency(depositPaidCents / 100)}</span>
+              </div>
+            )}
+            <p className="text-xs text-gray-400 border-t border-gray-100 pt-2">
+              Deposits are non-refundable; the balance is subject to the cancellation policy.
+            </p>
+          </div>
+
+          {canPay && (
+            <>
+              {/* Method toggle */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setPayMethod("card")}
+                  className={`p-3 border rounded-lg text-left transition-all ${payMethod === "card" ? "border-[#0f3c52] bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}
+                >
+                  <div className="text-xl mb-1">💳</div>
+                  <p className="text-sm font-medium">Credit Card</p>
+                  <p className="text-xs text-gray-400 mt-0.5">2.9% + $0.30</p>
+                </button>
+                <button
+                  onClick={() => setPayMethod("ach")}
+                  className={`p-3 border rounded-lg text-left transition-all ${payMethod === "ach" ? "border-[#0f3c52] bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}
+                >
+                  <div className="text-xl mb-1">🏦</div>
+                  <p className="text-sm font-medium">ACH Transfer</p>
+                  <p className="text-xs text-gray-400 mt-0.5">1% + $0.25</p>
+                </button>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2">
+                {depositDueCents > 0 && (
+                  <button
+                    onClick={() => startPayment("deposit")}
+                    disabled={busy}
+                    className="w-full py-3 text-sm font-semibold text-white rounded-lg disabled:opacity-60"
+                    style={{ backgroundColor: BRAND }}
+                  >
+                    {busy ? "Opening secure checkout…" : `Pay non-refundable deposit — ${formatCurrency(depositDueCents / 100)}`}
+                  </button>
+                )}
+                {balanceDueCents > 0 && (
+                  <button
+                    onClick={() => startPayment("balance")}
+                    disabled={busy}
+                    className="w-full py-3 text-sm font-semibold rounded-lg border border-[#0f3c52] text-[#0f3c52] hover:bg-blue-50 disabled:opacity-60"
+                  >
+                    {busy ? "Opening secure checkout…" : `Pay remaining balance — ${formatCurrency(balanceDueCents / 100)}`}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+
+          {!canPay && (
+            <p className="text-sm text-emerald-600 font-medium">✓ This reservation is fully paid.</p>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -609,3 +937,4 @@ function autoReplyHtml(body: string): string {
 <div style="padding:24px;color:#374151;font-size:14px;line-height:1.7;white-space:pre-wrap;">${body.replace(/\n/g, "<br>")}</div>
 </div></body></html>`;
 }
+
