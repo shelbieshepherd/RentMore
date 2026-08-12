@@ -262,7 +262,10 @@ function PaymentsPage() {
   };
 
   const checkoutPay = checkoutPayment ? payments.find((p) => p.id === checkoutPayment) : null;
-  const checkoutFee = checkoutPay ? processingFee(checkoutPay.amount, checkoutMethod) : 0;
+  // processingFee expects CENTS; store/demo amounts are dollars (mapDbPayment
+  // divides amount_cents by 100). Pass cents so the modal's fee/total match the
+  // application_fee_amount Stripe actually applies (e.g. $3,325 card → $96.73).
+  const checkoutFee = checkoutPay ? processingFee(Math.round(checkoutPay.amount * 100), checkoutMethod) : 0;
 
   // ── record payment ──
   const handleRecord = () => {
