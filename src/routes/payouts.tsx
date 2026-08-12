@@ -140,8 +140,16 @@ function PayoutsPage() {
   const totalNet = batch?.reduce((s, r) => s + Number(r.net_cents), 0) ?? 0;
 
   // Per-owner/property detail line items (display only — recomputed from store data).
+  // IMPORTANT: exclude payout rows — payments with paymentType 'payout' are owner
+  // disbursements, NOT revenue. The engine's filter only checks propertyId +
+  // status 'paid' + date range, so a recorded payout (status 'paid', date today)
+  // would otherwise be counted as revenue on the next run for the same period.
+  // (The persisted statement amounts are computed server-side from
+  // payment_type IN ('charge','deposit'), so this only affects the on-screen
+  // breakdown — but it must not show a payout as a revenue line.)
   const detailFor = (row: PayoutRow) => {
-    const statements = calculateOwnerPayouts(owners, properties, payments, maintenanceRequests, row.period_start, row.period_end);
+    const revenuePayments = payments.filter((p: any) => p.paymentType !== "payout");
+    const statements = calculateOwnerPayouts(owners, properties, revenuePayments, maintenanceRequests, row.period_start, row.period_end);
     return statements.find(s => s.ownerId === row.owner_id && s.propertyId === row.property_id);
   };
 
