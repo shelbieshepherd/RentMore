@@ -169,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: false, error: "Invalid email or password" };
   };
 
-  const register = async (name: string, email: string, password: string): Promise<{ success: boolean; needsVerification?: boolean; error?: string }> => {
+  const register = async (name: string, email: string, password: string): Promise<{ success: boolean; needsVerification?: boolean; companyId?: string; error?: string }> => {
     try {
       const { registerCompany, queueVerificationEmail } = await import("./db-queries");
       const result = await registerCompany({ data: { name, email, password } });
@@ -178,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         queueVerificationEmail({ data: { email, token: result.verifyToken } }).catch(() => {});
       }
       // Don't auto-login — user must verify email first
-      return { success: true, needsVerification: true };
+      return { success: true, needsVerification: true, companyId: result.company_id || undefined };
     } catch (e: any) {
       if (e?.message === "EMAIL_TAKEN") {
         return { success: false, error: "An account with this email already exists." };

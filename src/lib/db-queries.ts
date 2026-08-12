@@ -482,6 +482,23 @@ export const setConnectOnboardingComplete = createServerFn()
     return { success: true };
   });
 
+export const fetchConnectStatus = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    if (data.companyId === DEFAULT_COMPANY_ID) {
+      return { accountId: null, onboardingComplete: false, isDemo: true };
+    }
+    const rows = await sql()`
+      SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
+      FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
+    if (!rows.length) throw new Error("Company not found");
+    return {
+      accountId: rows[0].stripe_connect_account_id || null,
+      onboardingComplete: !!rows[0].stripe_connect_onboarding_complete,
+      isDemo: false,
+    };
+  });
+
 export const createCheckoutSession = createServerFn()
   .validator((data: { companyId: string; amountCents: number; paymentType: string; bookingId?: string; method?: string }) => data)
   .handler(async ({ data }) => {

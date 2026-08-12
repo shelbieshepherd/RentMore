@@ -40,9 +40,12 @@ function SignupPage() {
 
     if (result.success) {
       if (result.needsVerification) {
-        // Store email so verify-pending can resend
+        // Store email + company so verify-pending can resend / nudge onboarding
         if (typeof document !== "undefined") {
           document.cookie = `rentvue_signup_email=${encodeURIComponent(email)}; path=/; max-age=86400`;
+          if (result.companyId) {
+            document.cookie = `rentvue_signup_company=${result.companyId}; path=/; max-age=86400`;
+          }
         }
         navigate({ to: "/verify-pending" });
       } else {

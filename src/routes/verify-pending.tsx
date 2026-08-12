@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/verify-pending")({
   component: VerifyPendingPage,
@@ -9,6 +9,28 @@ function VerifyPendingPage() {
   const navigate = useNavigate();
   const [resending, setResending] = useState(false);
   const [resendDone, setResendDone] = useState(false);
+
+  // Post-signup nudge: if the just-registered company has no Stripe Connect
+  // account yet, suggest setting up online payments (real companies only).
+  const [connectInfo, setConnectInfo] = useState<{ hasAccount: boolean; isDemo: boolean } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const companyId = typeof document !== "undefined" ? getCookie("rentvue_signup_company") : null;
+    if (!companyId) return;
+    (async () => {
+      try {
+        const { fetchConnectStatus } = await import("~/lib/db-queries");
+        const st = await fetchConnectStatus({ data: { companyId } });
+        if (!cancelled) setConnectInfo({ hasAccount: !!st.accountId, isDemo: st.isDemo });
+      } catch {
+        // Non-fatal — the nudge simply won't show.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleResend() {
     setResending(true);
@@ -39,6 +61,7 @@ function VerifyPendingPage() {
     if (typeof document !== "undefined") {
       document.cookie = "rentvue_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
       document.cookie = "rentvue_signup_email=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+      document.cookie = "rentvue_signup_company=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
     }
     navigate({ to: "/login" });
   }
@@ -80,6 +103,28 @@ function VerifyPendingPage() {
             </button>
           </div>
         </div>
+
+        {connectInfo && !connectInfo.isDemo && !connectInfo.hasAccount && (
+          <div className="mt-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-left">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">💳</span>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Get ready to collect payments</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Once you've verified your email, connect your own Stripe account to start collecting
+                  rent and booking payments online (2.9% + $0.30 card, 1% + $0.25 ACH).
+                </p>
+                <button
+                  onClick={() => navigate({ to: "/settings/payments" })}
+                  className="mt-4 btn-primary w-full"
+                  style={{ backgroundColor: "#0f3c52" }}
+                >
+                  Set up online payments
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

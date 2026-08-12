@@ -30,6 +30,7 @@ const navItems = [
   { href: "/documents/templates", label: "Templates", icon: "📄" },
   { href: "/leads", label: "Leads", icon: "📋" },
   { href: "/users", label: "Users", icon: "👥" },
+  { href: "/settings/payments", label: "Payment Settings", icon: "⚙️" },
 ];
 
 export function DashboardLayout({ children, currentPath = "" }: { children: ReactNode; currentPath?: string }) {

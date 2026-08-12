@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "~/lib/layout";
 import {
   properties,
@@ -10,6 +10,7 @@ import {
 } from "~/lib/data";
 import type { Payment } from "~/lib/data";
 import { useStore } from "~/lib/store";
+import { useAuth } from "~/lib/auth";
 import { processingFee, type PaymentMethod } from "~/lib/fees";
 
 export const Route = createFileRoute("/payments")({
@@ -73,6 +74,52 @@ function PaymentsPage() {
     method: "credit card" as PaymentMethod,
     description: "",
   });
+
+  // ── Stripe Connect status (real companies only; demo stays on the mock path) ──
+  const { user } = useAuth();
+  const companyId = user?.companyId;
+  const [connect, setConnect] = useState<{ accountId: string | null; onboardingComplete: boolean; isDemo: boolean } | null>(null);
+  const [connectBusy, setConnectBusy] = useState(false);
+  const [connectError, setConnectError] = useState("");
+
+  useEffect(() => {
+    if (!companyId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { fetchConnectStatus } = await import("~/lib/db-queries");
+        const st = await fetchConnectStatus({ data: { companyId } });
+        if (!cancelled) setConnect(st);
+      } catch {
+        // Non-fatal: page still works with local/mock payments.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
+
+  const enableConnect = async () => {
+    if (!companyId || connectBusy) return;
+    setConnectBusy(true);
+    setConnectError("");
+    try {
+      const { createConnectAccount, getOnboardingLink } = await import("~/lib/db-queries");
+      let url: string | null = null;
+      if (!connect?.accountId) {
+        const created = await createConnectAccount({ data: { companyId } });
+        setConnect((c) => (c ? { ...c, accountId: created.accountId } : c));
+        url = created.onboardingUrl;
+      } else {
+        const link = await getOnboardingLink({ data: { accountId: connect.accountId } });
+        url = link.url;
+      }
+      if (url) window.open(url, "_blank", "noopener");
+    } catch (e: any) {
+      setConnectError(e?.message || "Could not start Stripe onboarding.");
+    }
+    setConnectBusy(false);
+  };
 
   // ── derived data ──
   const propertyMap = useMemo(() => {
@@ -198,6 +245,31 @@ function PaymentsPage() {
             <span>+</span> Record Payment
           </button>
         </div>
+
+        {/* Stripe Connect banner — real companies only (demo stays on mock path) */}
+        {connect && !connect.isDemo && !connect.onboardingComplete && (
+          <div className="card flex items-center justify-between gap-4 flex-wrap" style={{ borderLeft: `4px solid ${br}` }}>
+            <div className="min-w-[260px] flex-1">
+              <h2 className="text-base font-semibold text-gray-900">
+                {connect.accountId ? "Finish enabling online payments" : "Enable online payments"}
+              </h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {connect.accountId
+                  ? "Your Stripe account was created — complete the hosted onboarding to start collecting rent and booking payments online."
+                  : "Collect rent and booking payments online with your own Stripe account. You stay the merchant of record — RentMore only adds its platform fee (2.9% + $0.30 card, 1% + $0.25 ACH)."}
+              </p>
+              {connectError && <p className="mt-1 text-sm text-red-600">{connectError}</p>}
+            </div>
+            <button
+              onClick={enableConnect}
+              disabled={connectBusy}
+              className="btn-primary gap-2 shrink-0"
+              style={{ backgroundColor: br }}
+            >
+              {connectBusy ? "Opening…" : connect.accountId ? "Resume onboarding" : "Enable online payments"}
+            </button>
+          </div>
+        )}
 
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
