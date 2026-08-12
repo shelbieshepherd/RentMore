@@ -35,7 +35,9 @@ import { handleStripeWebhook } from "../src/lib/stripe-webhook";
 import { processingFee } from "../src/lib/fees";
 
 const CONNECT_CO = "c0f28972-0029-4a6c-979a-fe14cc7bb213"; // Fresh New Co
-const CONNECT_ACCT = "acct_1U3aRHGrO5c9vPRg";
+// Connected account id is DB-driven — it changes per Connect platform (the old
+// acct_1U3aRHGrO5c9vPRg belongs to the retired sandbox). NULL until the company
+// runs createConnectAccount on the current platform.
 const AMOUNT_CENTS = 100000; // $1,000.00 deposit (8-night block fixture = 2 blocks)
 const CARD_FEE = processingFee(AMOUNT_CENTS, "credit card"); // 2.9%+$0.30 = 2930¢
 
@@ -68,6 +70,18 @@ async function signAndSend(payload: object, sigOverride?: string | null) {
 }
 
 // ── 1. Precondition: account onboarding state ──
+const coRow = (await q("SELECT stripe_connect_account_id FROM companies WHERE id = $1::uuid", CONNECT_CO))[0];
+const CONNECT_ACCT: string = coRow?.stripe_connect_account_id;
+if (!CONNECT_ACCT) {
+  console.error(`
+BLOCKED: Fresh New Co has no Stripe Connect account on the current platform
+(DB stripe_connect_account_id is NULL — the old acct_1U3aRHGrO5c9vPRg belonged
+to the retired sandbox).
+One-time owner action (~1 min): login fresh-0810@test.com → Settings → Payments →
+"Connect Stripe" (creates the account on the new platform) → then re-run this
+harness; it will stop at the hCaptcha onboarding step if still needed.`);
+  process.exit(2);
+}
 const acct = await stripe.accounts.retrieve(CONNECT_ACCT);
 console.log(`\n=== Stripe Connect E2E — account ${CONNECT_ACCT} ===`);
 console.log(`  details_submitted=${acct.details_submitted} charges_enabled=${acct.charges_enabled} payouts_enabled=${acct.payouts_enabled}`);

@@ -15,7 +15,8 @@ const sql = neon(DATABASE_URL);
 
 const COMPANY = "00000000-0000-0000-0000-000000000001"; // demo company (only company with bookings)
 const CONNECT_CO = "c0f28972-0029-4a6c-979a-fe14cc7bb213"; // Fresh New Co (has the connected account)
-const CONNECT_ACCT = "acct_1U3aRHGrO5c9vPRg";
+// CONNECT_ACCT is DB-driven below — the old sandbox acct (acct_1U3aRHGrO5c9vPRg)
+// is gone; the current platform's account id lives in companies.
 
 async function q(text: string, ...args: unknown[]) {
   return sql.query(text, args as any[]);
@@ -47,7 +48,12 @@ const company = (await q(
   "SELECT stripe_connect_account_id, stripe_connect_onboarding_complete FROM companies WHERE id = $1::uuid",
   CONNECT_CO,
 ))[0] as any;
-console.log(`fixtures: connected acct=${company.stripe_connect_account_id} onboardingComplete=${company.stripe_connect_onboarding_complete}`);
+const CONNECT_ACCT: string = company?.stripe_connect_account_id;
+if (!CONNECT_ACCT) {
+  console.error("Fresh New Co has no connected account on the current platform (DB NULL) — run the E2E onboarding flow first, then re-run this regression.");
+  process.exit(1);
+}
+console.log(`fixtures: connected acct=${CONNECT_ACCT} onboardingComplete=${company.stripe_connect_onboarding_complete}`);
 
 const PI_OK = "pi_test_chunkD_succeeded_001";
 const PI_FAIL = "pi_test_chunkD_failed_001";
