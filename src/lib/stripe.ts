@@ -35,7 +35,10 @@ export interface ConnectAccountInput {
   businessName?: string;
 }
 
-/** Express connected account (customer = PM company), US, card + ACH capabilities. */
+/** Express connected account (customer = PM company), US, card + ACH capabilities.
+ * `transfers` is required alongside `card_payments` for the separate charges &
+ * transfers model (`on_behalf_of` + `application_fee_amount`): Stripe rejects
+ * `card_payments` without `transfers` on this model. */
 export async function createConnectAccount(input: ConnectAccountInput) {
   return stripe().accounts.create({
     type: "express",
@@ -43,6 +46,7 @@ export async function createConnectAccount(input: ConnectAccountInput) {
     email: input.email,
     capabilities: {
       card_payments: { requested: true },
+      transfers: { requested: true },
       us_bank_account_ach_payments: { requested: true },
     },
     business_type: "company",
