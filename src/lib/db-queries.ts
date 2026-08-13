@@ -2,6 +2,7 @@
 // All DB access goes through createServerFn handlers; never call sql() directly from client code.
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
+import { randomBytes } from "node:crypto";
 import { processingFee } from "./fees";
 import {
   calculateOwnerPayouts,
@@ -31,7 +32,7 @@ export const authenticateUser = createServerFn()
     const rows = await sql()`
       SELECT id, company_id, email, name, role, email_verified
       FROM users
-      WHERE email = ${data.email} AND password_hash = crypt(${data.password}, password_hash)
+      WHERE LOWER(email) = LOWER(${data.email}) AND password_hash = crypt(${data.password}, password_hash)
       LIMIT 1
     `;
     return rows[0] || null;
@@ -82,9 +83,11 @@ export const updateCompanySubscription = createServerFn()
 export const registerCompany = createServerFn()
   .validator((data: { name: string; email: string; password: string }) => data)
   .handler(async ({ data }) => {
-    // Check duplicate email first
+    // Normalize email to lowercase so login is case-insensitive end-to-end.
+    const email = data.email.trim().toLowerCase();
+    // Check duplicate email first (case-insensitive)
     const existing = await sql()`
-      SELECT id FROM users WHERE email = ${data.email} LIMIT 1
+      SELECT id FROM users WHERE LOWER(email) = LOWER(${email}) LIMIT 1
     `;
     if (existing.length > 0) {
       throw new Error("EMAIL_TAKEN");
@@ -103,7 +106,7 @@ export const registerCompany = createServerFn()
     // Create admin user with bcrypt hash + verification token
     const userRows = await sql()`
       INSERT INTO users (company_id, email, password_hash, name, role, verify_token, verify_token_expires)
-      VALUES (${companyId}::uuid, ${data.email},
+      VALUES (${companyId}::uuid, ${email},
         crypt(${data.password}, gen_salt('bf')),
         ${data.name}, 'admin', ${token}, ${expires}::timestamptz)
       RETURNING id, company_id, email, name, role
@@ -174,15 +177,16 @@ export const queueVerificationEmail = createServerFn()
 export const insertUser = createServerFn()
   .validator((data: { companyId: string; email: string; password: string; name: string; role: string }) => data)
   .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
     const existing = await sql()`
-      SELECT id FROM users WHERE company_id = ${data.companyId}::uuid AND email = ${data.email} LIMIT 1
+      SELECT id FROM users WHERE company_id = ${data.companyId}::uuid AND LOWER(email) = LOWER(${email}) LIMIT 1
     `;
     if (existing.length > 0) {
       throw new Error("EMAIL_TAKEN");
     }
     const rows = await sql()`
       INSERT INTO users (company_id, email, password_hash, name, role)
-      VALUES (${data.companyId}::uuid, ${data.email},
+      VALUES (${data.companyId}::uuid, ${email},
         crypt(${data.password}, gen_salt('bf')),
         ${data.name}, ${data.role})
       RETURNING id, company_id, email, name, role
@@ -219,12 +223,14 @@ export const updateUser = createServerFn()
   }) => data)
   .handler(async ({ data }) => {
     if (data.email) {
+      const email = data.email.trim().toLowerCase();
       const dup = await sql()`
         SELECT id FROM users
-        WHERE company_id = ${data.companyId}::uuid AND email = ${data.email} AND id <> ${data.id}::uuid
+        WHERE company_id = ${data.companyId}::uuid AND LOWER(email) = LOWER(${email}) AND id <> ${data.id}::uuid
         LIMIT 1
       `;
       if (dup.length > 0) throw new Error("EMAIL_TAKEN");
+      data.email = email;
     }
     const rows = await sql()`
       UPDATE users SET
@@ -290,6 +296,60 @@ export const regenerateVerifyToken = createServerFn()
       WHERE id = ${rows[0].id}::uuid
     `;
     return { success: true, token };
+  });
+// ── Password Reset ──
+export const requestPasswordReset = createServerFn()
+  .validator((data: { email: string }) => data)
+  .handler(async ({ data }) => {
+    const email = data.email.trim().toLowerCase();
+    const rows = await sql()`
+      SELECT id, email FROM users WHERE LOWER(email) = LOWER(${email}) LIMIT 1
+    `;
+    // Always respond success — no account enumeration. Only users that exist
+    // actually get an email.
+    if (rows.length === 0) return { success: true };
+    const token = randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+    await sql()`
+      UPDATE users SET password_reset_token = ${token}, password_reset_expires = ${expires}::timestamptz
+      WHERE id = ${rows[0].id}::uuid
+    `;
+    const resetLink = `${SITE_BASE}/reset-password?token=${encodeURIComponent(token)}`;
+    await sendViaResendOrQueue({
+      to: rows[0].email,
+      toName: "",
+      subject: "Reset your RentMore password",
+      html: `<p>Hi there,</p><p>We received a request to reset your RentMore password. Click the link below to choose a new one:</p><p><a href="${resetLink}">${resetLink}</a></p><p>This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email.</p><p>— The RentMore team</p>`,
+    });
+    return { success: true };
+  });
+export const resetPassword = createServerFn()
+  .validator((data: { token: string; password: string }) => data)
+  .handler(async ({ data }) => {
+    if (!data.password || data.password.length < 8) {
+      return { success: false, error: "Password must be at least 8 characters." };
+    }
+    const rows = await sql()`
+      SELECT id, password_reset_expires FROM users
+      WHERE password_reset_token = ${data.token} LIMIT 1
+    `;
+    if (rows.length === 0) {
+      return { success: false, error: "Invalid or expired reset link. Please request a new one." };
+    }
+    const user = rows[0];
+    if (!user.password_reset_expires || new Date(user.password_reset_expires) < new Date()) {
+      await sql()`
+        UPDATE users SET password_reset_token = NULL, password_reset_expires = NULL
+        WHERE id = ${user.id}::uuid
+      `;
+      return { success: false, error: "This reset link has expired. Please request a new one." };
+    }
+    await sql()`
+      UPDATE users SET password_hash = crypt(${data.password}, gen_salt('bf')),
+        password_reset_token = NULL, password_reset_expires = NULL
+      WHERE id = ${user.id}::uuid
+    `;
+    return { success: true };
   });
 
 // ── Properties ──

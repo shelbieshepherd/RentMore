@@ -89,6 +89,11 @@ function LoginPage() {
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
+            <div className="text-center">
+              <a href="/forgot-password" className="text-sm font-medium hover:underline" style={{ color: "#0f3c52" }}>
+                Forgot password?
+              </a>
+            </div>
           </form>
 
           <div className="mt-6 pt-6 border-t border-gray-100">

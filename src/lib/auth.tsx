@@ -52,7 +52,7 @@ async function authenticateWithDB(email: string, password: string): Promise<User
     const { authenticateUser } = await import("./db-queries");
     const result = await authenticateUser({ data: { email, password } });
     if (result) {
-      const isExempt = VERIFICATION_EXEMPT_EMAILS.has(email);
+      const isExempt = VERIFICATION_EXEMPT_EMAILS.has(email.toLowerCase());
       return {
         id: result.id, email: result.email, name: result.name,
         role: result.role as UserRole, companyId: result.company_id,
@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Fallback to seed users
-    const found = seedUsers.find(u => u.email === email && u.password === password);
+    const found = seedUsers.find(u => u.email === email.toLowerCase() && u.password === password);
     if (found) {
       const { password: _, ...safe } = found;
       setUser(safe);
