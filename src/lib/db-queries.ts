@@ -3,7 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
 import { randomBytes } from "node:crypto";
-import { processingFee } from "./fees";
+import { guestTotalCents, platformFeeCents } from "./fees";
 import {
   calculateOwnerPayouts,
   type PayoutOwner,
@@ -706,9 +706,15 @@ export const createCheckoutSession = createServerFn()
   .validator((data: { companyId: string; amountCents: number; paymentType: string; bookingId?: string; propertyId?: string; method?: string }) => data)
   .handler(async ({ data }) => {
     const isAch = data.method === "ach";
-    const feeCents = processingFee(data.amountCents, isAch ? "ACH" : "credit card");
+    const method = isAch ? "ACH" : "credit card";
+    // Guest-paid convenience fee model (owner decision Aug 13): the guest is
+    // charged booking + convenience fee (3.5% card / 1% + $0.25 ACH); RentMore
+    // keeps the spread after Stripe's cost as application_fee_amount; the PM
+    // nets exactly the booking amount.
+    const guestTotal = guestTotalCents(data.amountCents, method);
+    const feeCents = platformFeeCents(data.amountCents, method);
     if (data.companyId === DEFAULT_COMPANY_ID) {
-      return { url: null, sessionId: `cs_demo_${Date.now()}`, mock: true, feeCents };
+      return { url: null, sessionId: `cs_demo_${Date.now()}`, mock: true, feeCents, guestTotalCents: guestTotal };
     }
     const companyRows = await sql()`
       SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
@@ -735,6 +741,7 @@ export const createCheckoutSession = createServerFn()
       company_id: data.companyId,
       payment_type: data.paymentType,
       method: isAch ? "ach" : "card",
+      booking_amount_cents: String(data.amountCents), // what the PM receives
     };
     if (data.bookingId) meta.booking_id = data.bookingId;
     if (data.propertyId) meta.property_id = data.propertyId;
@@ -742,7 +749,8 @@ export const createCheckoutSession = createServerFn()
       mode: "payment",
       line_items: [
         {
-          price_data: { currency: "usd", product_data: { name: productName }, unit_amount: data.amountCents },
+          // Guest pays booking + convenience fee (3.5% card / 1% + $0.25 ACH).
+          price_data: { currency: "usd", product_data: { name: productName }, unit_amount: guestTotal },
           quantity: 1,
         },
       ],

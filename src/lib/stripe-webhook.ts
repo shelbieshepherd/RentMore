@@ -88,9 +88,13 @@ async function handlePaymentIntent(
   if (!md.company_id) return; // no company attribution — nothing to reconcile
   const bookingId = md.booking_id;
   const propertyId = await resolvePropertyId(md.property_id, bookingId);
+  const bookingAmountCents = md.booking_amount_cents ? Number(md.booking_amount_cents) : NaN;
   const paymentType = md.payment_type === "deposit" ? "deposit" : "charge";
   const method = md.method === "ach" ? "ach" : "credit_card";
-  const amountCents = pi.amount || 0;
+  // Guest-paid convenience model: pi.amount is booking + convenience fee; the
+  // PM receives exactly the booking amount (metadata) — record that so payouts
+  // match what the PM actually nets.
+  const amountCents = Number.isFinite(bookingAmountCents) ? bookingAmountCents : pi.amount || 0;
   const feeCents =
     typeof pi.application_fee_amount === "number"
       ? pi.application_fee_amount

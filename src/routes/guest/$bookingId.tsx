@@ -475,7 +475,7 @@ function PaymentCard({
                 >
                   <div className="text-xl mb-1">💳</div>
                   <p className="text-sm font-medium">Credit Card</p>
-                  <p className="text-xs text-gray-400 mt-0.5">2.9% + $0.30</p>
+                  <p className="text-xs text-gray-400 mt-0.5">3.5% card convenience fee</p>
                 </button>
                 <button
                   onClick={() => setPayMethod("ach")}
@@ -483,7 +483,7 @@ function PaymentCard({
                 >
                   <div className="text-xl mb-1">🏦</div>
                   <p className="text-sm font-medium">ACH Transfer</p>
-                  <p className="text-xs text-gray-400 mt-0.5">1% + $0.25</p>
+                  <p className="text-xs text-gray-400 mt-0.5">1% + $0.25 ACH convenience fee</p>
                 </button>
               </div>
 

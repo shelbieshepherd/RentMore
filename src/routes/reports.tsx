@@ -518,7 +518,7 @@ function ReportsPage() {
         description: p.description,
         amount: p.amount,
         method: p.method,
-        fee: processingFee(p.amount, p.method),
+        fee: processingFee(Math.round(p.amount * 100), p.method),
       };
     });
   }, [payments, propById, monthFirst, monthLast]);

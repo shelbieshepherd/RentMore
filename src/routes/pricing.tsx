@@ -88,7 +88,7 @@ function PricingPage() {
             ))}
           </div>
           <p className="text-center text-sm text-gray-400 mt-8">
-            Credit card: 2.9% + $0.30 per transaction &nbsp;|&nbsp; ACH: 1% + $0.25 per transaction
+            Guests pay a 3.5% card convenience fee &nbsp;|&nbsp; 1% + $0.25 on ACH — you pay nothing
           </p>
         </div>
       </section>
@@ -128,9 +128,9 @@ function PricingPage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-4">How transaction fees work</h2>
           <p className="text-gray-600 leading-relaxed mb-4">
             RentMore processes payments through your own Stripe account — RentMore is never the merchant of
-            record and never holds your funds. Every credit card transaction carries a 2.9% + $0.30 processing
-            fee; every ACH transaction carries a 1% + $0.25 fee. The Reports tab breaks these fees out per
-            transaction so you always know what processing costs you.
+            record and never holds your funds. Guests pay a 3.5% convenience fee on card payments and 1% + $0.25 on ACH — you
+            receive 100% of every booking, nothing is deducted from your proceeds. The Reports tab breaks the
+            fees out per transaction.
           </p>
           <p className="text-gray-600 leading-relaxed mb-4">
             Owner payouts are calculated automatically and recorded in the platform; you disburse them from

@@ -11,7 +11,7 @@ import {
 import type { Payment } from "~/lib/data";
 import { useStore } from "~/lib/store";
 import { useAuth } from "~/lib/auth";
-import { processingFee, type PaymentMethod } from "~/lib/fees";
+import { convenienceFeeCents, convenienceFeeLabel, type PaymentMethod } from "~/lib/fees";
 
 export const Route = createFileRoute("/payments")({
   component: PaymentsPage,
@@ -262,10 +262,11 @@ function PaymentsPage() {
   };
 
   const checkoutPay = checkoutPayment ? payments.find((p) => p.id === checkoutPayment) : null;
-  // processingFee expects CENTS; store/demo amounts are dollars (mapDbPayment
-  // divides amount_cents by 100). Pass cents so the modal's fee/total match the
-  // application_fee_amount Stripe actually applies (e.g. $3,325 card → $96.73).
-  const checkoutFee = checkoutPay ? processingFee(Math.round(checkoutPay.amount * 100), checkoutMethod) : 0;
+  // Guest-paid convenience fee (new model): the guest pays booking + fee; the
+  // PM receives 100% of the booking. Store amounts are dollars (mapDbPayment
+  // divides by 100) — pass cents so the modal's fee/total match the actual
+  // charge (e.g. $1,000 card → guest pays $1,035.00, PM nets $1,000).
+  const checkoutFee = checkoutPay ? convenienceFeeCents(Math.round(checkoutPay.amount * 100), checkoutMethod) : 0;
 
   // ── record payment ──
   const handleRecord = () => {
@@ -317,7 +318,7 @@ function PaymentsPage() {
               <p className="text-sm text-gray-500 mt-0.5">
                 {connect.accountId
                   ? "Your Stripe account was created — complete the hosted onboarding to start collecting rent and booking payments online."
-                  : "Collect rent and booking payments online with your own Stripe account. You stay the merchant of record — RentMore only adds its platform fee (2.9% + $0.30 card, 1% + $0.25 ACH)."}
+                  : "Collect rent and booking payments online with your own Stripe account. You stay the merchant of record — Guests pay a convenience fee (3.5% card / 1% + $0.25 ACH); you receive 100% of every booking."}
               </p>
               {connectError && <p className="mt-1 text-sm text-red-600">{connectError}</p>}
             </div>
@@ -640,17 +641,13 @@ function PaymentsPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">
-                        {rp.method === "credit card"
-                          ? "Processing Fee (2.9% + $0.30)"
-                          : rp.method === "ACH"
-                          ? "Processing Fee (1% + $0.25)"
-                          : "No processing fee"}
+                        "No fee — you receive 100% of the booking"
                       </span>
-                      <span>{formatCurrency(processingFee(rp.amount, rp.method))}</span>
+                      <span>{formatCurrency(0)}</span>
                     </div>
                     <div className="flex justify-between border-t pt-1 font-semibold">
                       <span>Total</span>
-                      <span>{formatCurrency(rp.amount + processingFee(rp.amount, rp.method))}</span>
+                      <span>{formatCurrency(rp.amount)}</span>
                     </div>
                   </div>
                 )}
@@ -725,7 +722,7 @@ function PaymentsPage() {
                       >
                         <div className="text-xl mb-1">💳</div>
                         <p className="text-sm font-medium">Credit Card</p>
-                        <p className="text-xs text-gray-400 mt-0.5">2.9% + $0.30</p>
+                        <p className="text-xs text-gray-400 mt-0.5">3.5% convenience fee</p>
                       </button>
                       <button
                         onClick={() => setCheckoutMethod("ACH")}
@@ -737,7 +734,7 @@ function PaymentsPage() {
                       >
                         <div className="text-xl mb-1">🏦</div>
                         <p className="text-sm font-medium">ACH Transfer</p>
-                        <p className="text-xs text-gray-400 mt-0.5">1% + $0.25</p>
+                        <p className="text-xs text-gray-400 mt-0.5">1% + $0.25 convenience fee</p>
                       </button>
                       {!onlineReady && (
                         <button
@@ -768,17 +765,17 @@ function PaymentsPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">
-                        {checkoutMethod === "check" ? "No processing fee" : "Processing Fee"}
+                        {checkoutMethod === "check" ? "No convenience fee" : "Convenience fee (guest pays)"}
                       </span>
                       <span>{formatCurrency(checkoutFee)}</span>
                     </div>
                     <div className="flex justify-between text-base font-semibold border-t pt-2">
-                      <span>{onlineReady ? "Total Charged to Payer" : "Total"}</span>
-                      <span>{formatCurrency(onlineReady ? checkoutPay.amount : checkoutPay.amount + checkoutFee)}</span>
+                      <span>Total Charged to Payer</span>
+                      <span>{formatCurrency(checkoutPay.amount + checkoutFee)}</span>
                     </div>
                     {onlineReady && (
                       <p className="text-xs text-gray-400">
-                        The {formatCurrency(checkoutFee)} RentMore platform fee is deducted from your proceeds — it is not added to the payer's total.
+                        The guest pays a {formatCurrency(checkoutFee)} convenience fee on top of your booking amount. You receive 100% of the booking — nothing is deducted from your proceeds.
                       </p>
                     )}
                   </div>
