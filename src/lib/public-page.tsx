@@ -38,7 +38,7 @@ export function PublicNav() {
             className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-colors"
             style={{ backgroundColor: BRAND }}
           >
-            Start free trial
+            Get started
           </a>
         </div>
       </div>

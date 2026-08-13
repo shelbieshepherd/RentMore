@@ -109,11 +109,11 @@ function ShortTermArticle() {
         <div className="bg-gray-50 rounded-xl p-8 border border-gray-100 mt-12 text-center">
           <h2 className="text-xl font-bold text-gray-900 mb-3">Try RentMore on your own properties</h2>
           <p className="text-sm text-gray-600 mb-6 max-w-xl mx-auto">
-            Free trial, no long-term contract. Load your portfolio, run a guest activity report, and see
+            Pick a plan that fits your portfolio, load your properties, run a guest activity report, and see
             the owner statement math for yourself.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <CtaButton href="/signup" label="Start your free trial" />
+            <CtaButton href="/signup" label="Get started" />
             <a
               href="/pricing"
               className="px-8 py-3.5 rounded-lg text-base font-medium text-gray-700 border border-gray-200 hover:border-gray-300 transition-colors"

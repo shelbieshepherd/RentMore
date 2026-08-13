@@ -20,7 +20,7 @@ function PitchPage() {
               className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-colors"
               style={{ backgroundColor: "#0f3c52" }}
             >
-              Start free trial
+              Get started
             </a>
           </div>
         </div>
@@ -45,7 +45,7 @@ function PitchPage() {
             className="px-8 py-3.5 rounded-lg text-base font-semibold text-white hover:opacity-90 transition-colors shadow-lg"
             style={{ backgroundColor: "#0f3c52" }}
           >
-            Get started &mdash; free trial
+            Get started
           </a>
           <a
             href="#pricing"
@@ -169,7 +169,7 @@ function PitchPage() {
                   }`}
                   style={tier.highlight ? { backgroundColor: "#0f3c52" } : {}}
                 >
-                  Start free trial
+                  Get started
                 </a>
               </div>
             ))}

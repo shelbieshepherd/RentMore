@@ -122,7 +122,7 @@ function VacationRentalArticle() {
             for it.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <CtaButton href="/signup" label="Start your free trial" />
+            <CtaButton href="/signup" label="Get started" />
             <a
               href="/pricing"
               className="px-8 py-3.5 rounded-lg text-base font-medium text-gray-700 border border-gray-200 hover:border-gray-300 transition-colors"

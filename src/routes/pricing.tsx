@@ -82,7 +82,7 @@ function PricingPage() {
                   }`}
                   style={tier.highlight ? { backgroundColor: BRAND } : {}}
                 >
-                  Start free trial
+                  Choose your plan
                 </a>
               </div>
             ))}
@@ -114,7 +114,7 @@ function PricingPage() {
             ))}
           </ul>
           <div className="text-center mt-10">
-            <CtaButton href="/signup" label="Start your free trial" />
+            <CtaButton href="/signup" label="Get started" />
             <p className="text-xs text-gray-400 mt-4">
               Prefer to see it first? <a href="/pitch" className="underline" style={{ color: BRAND }}>Read the product overview</a>.
             </p>
