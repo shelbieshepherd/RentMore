@@ -30,7 +30,6 @@ function BookingDetailPage() {
   const bookingId = params.bookingId;
   const store = useStore();
   const booking = store.bookings.find((b: any) => b.id === bookingId);
-  
   if (!booking) {
     return (
       <DashboardLayout>
@@ -42,7 +41,17 @@ function BookingDetailPage() {
       </DashboardLayout>
     );
   }
+  // All hooks live in the inner component so the not-found early return above
+  // never drops the hook count (React error #300) when booking arrives late
+  // (async store hydration) or a stale link points at an unknown id.
+  return <BookingDetailContent booking={booking} />;
+}
 
+function BookingDetailContent({ booking }: { booking: any }) {
+  const params = Route.useParams();
+  const navigate = useNavigate();
+  const bookingId = params.bookingId;
+  const store = useStore();
   const property = store.properties.find((p: any) => p.id === booking.propertyId);
   const owner = store.owners?.find((o: any) => o.id === property?.ownerId);
   const allPayments = store.payments.filter((p: any) => p.tenantId === booking.id);

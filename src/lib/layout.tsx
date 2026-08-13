@@ -69,9 +69,6 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
     }
   }, [isAuthenticated, user, navigate]);
 
-  if (!isAuthenticated) return null;
-  if (user && user.emailVerified === false && user.companyId !== "00000000-0000-0000-0000-000000000001") return null;
-
   // Fetch real plan tier
   useEffect(() => {
     if (!user?.companyId) return;
@@ -90,6 +87,11 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Auth guards — AFTER all hooks (early returns here would drop the hook count
+  // on sign-out and throw React error #300 "rendered fewer hooks than expected").
+  if (!isAuthenticated) return null;
+  if (user && user.emailVerified === false && user.companyId !== "00000000-0000-0000-0000-000000000001") return null;
 
   const openForm = (type: QuickAddType) => {
     setShowQuickAdd(false);
