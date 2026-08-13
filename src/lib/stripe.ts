@@ -50,7 +50,12 @@ export async function createConnectAccount(input: ConnectAccountInput) {
       transfers: { requested: true },
       us_bank_account_ach_payments: { requested: true },
     },
-    business_type: "company",
+    // NOTE: business_type intentionally NOT set. Stripe's API marks it
+    // optional on account creation (docs.stripe.com/api/accounts/create),
+    // and Express hosted onboarding collects the entity type from the user
+    // (individual / sole proprietor / company) when it's unset. Hardcoding
+    // "company" forced EIN-based company fields on every PM — blocking
+    // sole-proprietor PMs, the core 5–50 unit market. (2026-08-13)
     business_profile: {
       name: input.businessName || "RentMore customer",
       url: RENTMORE_SITE_URL,
