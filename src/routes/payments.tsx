@@ -308,28 +308,79 @@ function PaymentsPage() {
           </button>
         </div>
 
-        {/* Stripe Connect banner — real companies only (demo stays on mock path) */}
+        {/* Stripe Connect onboarding wizard — real companies only (demo stays on mock path) */}
         {connect && !connect.isDemo && !connect.onboardingComplete && (
-          <div className="card flex items-center justify-between gap-4 flex-wrap" style={{ borderLeft: `4px solid ${br}` }}>
-            <div className="min-w-[260px] flex-1">
-              <h2 className="text-base font-semibold text-gray-900">
-                {connect.accountId ? "Finish enabling online payments" : "Enable online payments"}
-              </h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {connect.accountId
-                  ? "Your Stripe account was created — complete the hosted onboarding to start collecting rent and booking payments online."
-                  : "Collect rent and booking payments online with your own Stripe account. You stay the merchant of record — Guests pay a convenience fee (3.5% card / 1% + $0.25 ACH); you receive 100% of every booking."}
-              </p>
-              {connectError && <p className="mt-1 text-sm text-red-600">{connectError}</p>}
+          <div className="card p-6" style={{ borderLeft: `4px solid ${br}` }}>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {connect.accountId ? "Finish enabling online payments" : "Enable online payments"}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Collect rent and booking payments online — guests pay through{" "}
+              <strong>your own Stripe account</strong>, and you receive{" "}
+              <strong>100% of every payment</strong>.
+            </p>
+
+            {/* Step 1 — what this is */}
+            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-xl border border-gray-100 p-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">1 · What this is</p>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+                  Guests and tenants pay rent and booking fees with credit card or ACH. You stay the{" "}
+                  <strong>merchant of record</strong> — RentMore never holds your funds.
+                </p>
+                <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  <div className="flex justify-between"><span>Card</span><span className="font-semibold">3.5% convenience fee (guest pays)</span></div>
+                  <div className="flex justify-between mt-1"><span>ACH</span><span className="font-semibold">1% + $0.25 (guest pays)</span></div>
+                  <div className="flex justify-between mt-1 border-t border-gray-200 pt-1"><span>You receive</span><span className="font-semibold text-emerald-600">100% of every payment</span></div>
+                </div>
+              </div>
+
+              {/* Step 2 — how it works */}
+              <div className="rounded-xl border border-gray-100 p-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">2 · How it works</p>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed">
+                  Takes a few minutes. Stripe hosts the whole onboarding — you'll need your{" "}
+                  <strong>business details and a bank account</strong>. When you finish, you'll land
+                  back here and online payments are live.
+                </p>
+                <ul className="mt-3 space-y-1.5 text-xs text-gray-500">
+                  <li>✅ Create your free Stripe account</li>
+                  <li>✅ Enter business details + bank account</li>
+                  <li>✅ Verify identity (Stripe-hosted, secure)</li>
+                  <li>✅ Done — payments are enabled</li>
+                </ul>
+              </div>
+
+              {/* Step 3 — launch */}
+              <div className="rounded-xl border border-gray-100 p-4 flex flex-col">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">3 · Launch</p>
+                <p className="mt-2 text-sm text-gray-600 leading-relaxed flex-1">
+                  {connect.accountId
+                    ? "Your Stripe account is already created — continue where you left off."
+                    : "Ready? Open Stripe-hosted onboarding in a new tab."}
+                </p>
+                <button
+                  onClick={enableConnect}
+                  disabled={connectBusy}
+                  className="btn-primary gap-2 w-full mt-4"
+                  style={{ backgroundColor: br }}
+                >
+                  {connectBusy ? "Opening…" : connect.accountId ? "Resume onboarding" : "Start Stripe onboarding"}
+                </button>
+                <p className="text-xs text-gray-400 mt-2">
+                  A new tab opens — come back here when you're done.
+                </p>
+              </div>
             </div>
-            <button
-              onClick={enableConnect}
-              disabled={connectBusy}
-              className="btn-primary gap-2 shrink-0"
-              style={{ backgroundColor: br }}
-            >
-              {connectBusy ? "Opening…" : connect.accountId ? "Resume onboarding" : "Enable online payments"}
-            </button>
+
+            {connectError && <p className="mt-3 text-sm text-red-600">{connectError}</p>}
+
+            <p className="mt-4 text-xs text-gray-400 border-t border-gray-100 pt-3">
+              Payments are processed by your own Stripe account — RentMore is never the merchant of
+              record and never holds customer funds. Chargebacks, refunds, and disputes are resolved
+              against your Stripe account's balance (see Stripe's connected account agreement for
+              details); RentMore is not liable for losses on your account.
+            </p>
           </div>
         )}
 
@@ -640,9 +691,7 @@ function PaymentsPage() {
                       <span>{formatCurrency(rp.amount)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">
-                        "No fee — you receive 100% of the booking"
-                      </span>
+                      <span className="text-gray-500">No fee — you receive 100% of the booking</span>
                       <span>{formatCurrency(0)}</span>
                     </div>
                     <div className="flex justify-between border-t pt-1 font-semibold">

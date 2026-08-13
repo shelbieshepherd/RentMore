@@ -80,8 +80,8 @@ function PitchPage() {
               },
               {
                 icon: "💳",
-                title: "Processing-Fee Breakdown",
-                desc: "Credit card (2.9% + $0.30) and ACH (1% + $0.25) fees broken out per transaction. Know exactly what processing costs you every month.",
+                title: "Guest-Paid Convenience Fees",
+                desc: "Guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) — you receive 100% of every booking. Fee breakdowns per transaction.",
               },
             ].map((item) => (
               <div key={item.title} className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
@@ -111,7 +111,7 @@ function PitchPage() {
               { icon: "📅", title: "Leases & Reservations", desc: "Track lease dates and reservation blocks. Calendar view across your whole portfolio." },
               { icon: "🏠", title: "Properties", desc: "Full property profiles: type, rates, beds, amenities, house rules. Ready for OTA listings." },
               { icon: "🏦", title: "Owner Payouts", desc: "Calculate what's owed per owner, per property, per period. Mark paid with ACH or check method." },
-              { icon: "📈", title: "Reports", desc: "Financial summaries, check-in/check-out runs, tax reports, processing fees — exportable and printable." },
+              { icon: "📈", title: "Reports", desc: "Financial summaries, check-in/check-out runs, tax reports, guest-paid convenience fees — exportable and printable." },
               { icon: "🔌", title: "OTA Ready", desc: "Integrations tab with Airbnb & VRBO architecture built. Direct connectivity on the roadmap." },
             ].map((f) => (
               <div key={f.title} className="bg-white rounded-xl p-5 border border-gray-100 hover:shadow-md transition-shadow">
@@ -175,7 +175,7 @@ function PitchPage() {
             ))}
           </div>
           <p className="text-center text-sm text-gray-400 mt-8">
-            Credit card: 2.9% + $0.30 per transaction &nbsp;|&nbsp; ACH: 1% + $0.25 per transaction
+            Guests pay a 3.5% card convenience fee &nbsp;|&nbsp; 1% + $0.25 on ACH — you pay nothing
           </p>
         </div>
       </section>

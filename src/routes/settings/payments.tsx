@@ -135,7 +135,7 @@ function SettingsPaymentsPage() {
                         ? "You can collect rent and booking payments online. Transactions are processed by your own Stripe account — RentMore never holds customer funds."
                         : status?.accountId
                           ? "Your Stripe account was created. Complete the hosted onboarding to start accepting payments."
-                          : "Connect your own Stripe account (free, Stripe-hosted). You stay the merchant of record — RentMore only adds its platform fee."}
+                          : "Connect your own Stripe account (free, Stripe-hosted). You stay the merchant of record — guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) and you receive 100% of every payment."}
                     </p>
                     {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
                     {notice && <p className="mt-2 text-sm text-green-700">{notice}</p>}
@@ -154,22 +154,25 @@ function SettingsPaymentsPage() {
 
             {/* Fee summary */}
             <div className="stat-card p-8">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">RentMore platform fees</h3>
+              <h3 className="text-base font-semibold text-gray-900 mb-4">How fees work — guests pay, you receive 100%</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="rounded-xl border border-gray-100 p-4">
                   <p className="text-sm text-gray-500">Credit card</p>
-                  <p className="text-xl font-bold text-gray-900 mt-1">2.9% + $0.30</p>
-                  <p className="text-xs text-gray-400 mt-1">per transaction</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">3.5%</p>
+                  <p className="text-xs text-gray-400 mt-1">convenience fee, guest pays</p>
                 </div>
                 <div className="rounded-xl border border-gray-100 p-4">
                   <p className="text-sm text-gray-500">ACH bank transfer</p>
                   <p className="text-xl font-bold text-gray-900 mt-1">1% + $0.25</p>
-                  <p className="text-xs text-gray-400 mt-1">per transaction</p>
+                  <p className="text-xs text-gray-400 mt-1">convenience fee, guest pays</p>
                 </div>
               </div>
               <p className="mt-4 text-xs text-gray-400">
-                Stripe's own processing fees are deducted from your account's balance; the platform fee
-                above is RentMore's. You can disable online payments anytime.
+                Payments are processed through your own Stripe account — you stay the merchant of record and
+                receive 100% of every booking. Guests pay a convenience fee (3.5% card / 1% + $0.25 ACH); RentMore
+                keeps a small share of that fee after Stripe's processing cost. Chargebacks, refunds, and disputes
+                are resolved against your Stripe account's balance — RentMore is never the merchant of record and
+                never holds customer funds. You can disable online payments anytime.
               </p>
             </div>
           </>

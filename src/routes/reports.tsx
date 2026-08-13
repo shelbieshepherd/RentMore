@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "~/lib/layout";
 import { formatCurrency, formatDate, getStatusColor, type Booking, type OwnerPayout, type PayoutMethod, owners as seedOwners } from "~/lib/data";
-import { processingFee } from "~/lib/fees";
 import { useStore } from "~/lib/store";
 import { fetchTaxRate, upsertTaxRate } from "~/lib/db-queries";
 
@@ -501,7 +500,7 @@ function ReportsPage() {
 
   const cleanLinenTotal = cleaningLinenRows.reduce((s, x) => s + x.combined, 0);
 
-  // d. Processing Fees — paid payments in the month
+  // d. Guest-paid convenience fees — paid payments in the month
   const processingFeeRows = useMemo(() => {
     const paidInMonth = payments.filter((p) => {
       if (p.status !== "paid") return false;
@@ -518,7 +517,7 @@ function ReportsPage() {
         description: p.description,
         amount: p.amount,
         method: p.method,
-        fee: processingFee(Math.round(p.amount * 100), p.method),
+        fee: p.method === "credit card" ? p.amount * 0.035 : p.method === "ACH" ? p.amount * 0.01 + 0.25 : 0,
       };
     });
   }, [payments, propById, monthFirst, monthLast]);
@@ -896,10 +895,10 @@ function ReportsPage() {
               </div>
             </div>
 
-            {/* ── d. Processing Fees ── */}
+            {/* ── d. Guest-Paid Convenience Fees ── */}
             <div className="card">
               <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h2 className="text-lg font-semibold">💳 Processing Fees</h2>
+                <h2 className="text-lg font-semibold">💳 Guest-Paid Convenience Fees</h2>
                 <button
                   onClick={() => {
                     exportCsv(
@@ -921,7 +920,7 @@ function ReportsPage() {
                   <div className="stat-card border-l-4 border-l-slate-500"><p className="text-sm text-gray-500">Total Fees</p><p className="text-2xl font-bold mt-1 text-slate-600">{formatCurrency(pfCcTotal + pfAchTotal)}</p></div>
                 </div>
                 <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-                  Credit Card: 2.9% + $0.30 &nbsp;|&nbsp; ACH: 1% + $0.25 &nbsp;|&nbsp; Check / Utility / Deposit: no processing fee
+                  Credit Card: 3.5% convenience fee (guest pays) &nbsp;|&nbsp; ACH: 1% + $0.25 (guest pays) &nbsp;|&nbsp; Check / Utility / Deposit: no convenience fee
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

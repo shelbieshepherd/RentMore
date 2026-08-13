@@ -81,7 +81,7 @@ function PlanPage() {
       <div className="max-w-5xl mx-auto py-8 px-4">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Plan</h1>
         <p className="text-sm text-gray-500 mb-8">
-          All plans include 2.9% + $0.30 per credit card transaction (ACH at 1% + $0.25). Billed monthly via Stripe checkout.
+          Guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) — you receive 100% of every payment. Billed monthly via Stripe checkout.
         </p>
 
         {pendingPlan && (
