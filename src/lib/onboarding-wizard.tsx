@@ -52,7 +52,16 @@ export function OnboardingWizard({
         setError("Stripe returned no onboarding link — please try again.");
       }
     } catch (e: any) {
-      setError(e?.message || "Could not start Stripe onboarding.");
+      const raw = e?.message || "Could not start Stripe onboarding.";
+      // Stripe surfaces platform-side blockers (e.g. "Please review the
+      // responsibilities of managing losses…") as account-creation errors —
+      // reframe them so the user knows it's a one-time Stripe admin step,
+      // not an app failure.
+      if (/responsibilities of managing losses|platform profile|platform admin/i.test(raw)) {
+        setError(`Stripe is asking the platform admin to complete a one-time review — ${raw}`);
+      } else {
+        setError(raw);
+      }
     }
     setBusy(false);
   };
