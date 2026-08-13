@@ -43,6 +43,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
   const [guestSearch, setGuestSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [planTier, setPlanTier] = useState<string | null>(null);
+  const [planActive, setPlanActive] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const searchResults = useMemo(() => {
@@ -69,12 +70,13 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
     }
   }, [isAuthenticated, user, navigate]);
 
-  // Fetch real plan tier
+  // Fetch real plan tier + active status
   useEffect(() => {
     if (!user?.companyId) return;
-    import("~/lib/db-queries").then(({ fetchCompanyPlan }) => {
-      fetchCompanyPlan({ data: { companyId: user.companyId! } }).then(tier => {
-        setPlanTier(typeof tier === "string" ? tier : null);
+    import("~/lib/db-queries").then(({ fetchSubscriptionStatus }) => {
+      fetchSubscriptionStatus({ data: { companyId: user.companyId! } }).then((res: any) => {
+        setPlanTier(typeof res?.tier === "string" ? res.tier : null);
+        setPlanActive(res?.active !== false);
       }).catch(() => {});
     });
   }, [user?.companyId]);
@@ -244,7 +246,7 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
                   </>
                 )}
               </div>
-              <span className={`badge hidden sm:inline-flex ${planBadgeClass(planTier, user?.companyId)}`}>{planLabel(planTier, user?.companyId)}</span>
+              <span className={`badge hidden sm:inline-flex ${planBadgeClass(planTier, user?.companyId, planActive)}`}>{planLabel(planTier, user?.companyId, planActive)}</span>
               {/* User dropdown */}
               <div className="relative">
                 <button
@@ -287,9 +289,11 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
   );
 }
 
-function planLabel(tier: string | null, companyId?: string): string {
+function planLabel(tier: string | null, companyId?: string, active?: boolean): string {
   if (companyId === "00000000-0000-0000-0000-000000000001") return "Demo";
-  if (!tier || tier === "free") return "Free";
+  if (!tier || tier === "free") {
+    return active === false ? "Plan Inactive" : "Free";
+  }
   if (tier === "starter") return "Starter";
   if (tier === "growth") return "Growth";
   if (tier === "pro") return "Pro";
@@ -298,11 +302,13 @@ function planLabel(tier: string | null, companyId?: string): string {
     const base = tier.replace("_pending", "");
     return base.charAt(0).toUpperCase() + base.slice(1) + " (pending)";
   }
+  if (active === false) return "Expired";
   return tier;
 }
 
-function planBadgeClass(tier: string | null, companyId?: string): string {
+function planBadgeClass(tier: string | null, companyId?: string, active?: boolean): string {
   if (companyId === "00000000-0000-0000-0000-000000000001") return "bg-gray-100 text-gray-600";
+  if (active === false) return "bg-red-100 text-red-700";
   if (!tier || tier === "free") return "bg-gray-100 text-gray-600";
   if (tier.includes("_pending")) return "bg-amber-100 text-amber-800";
   return "bg-green-100 text-green-800";

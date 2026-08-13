@@ -7,6 +7,7 @@ import {
   owners,
 } from "~/lib/data";
 import { useStore } from "~/lib/store";
+import { useSubscriptionStatus, PLAN_INACTIVE_MSG } from "~/lib/use-subscription";
 import type { Booking, CalendarBlock } from "~/lib/data";
 
 export const Route = createFileRoute("/calendar")({
@@ -54,6 +55,7 @@ function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(nowDate.getMonth());
   const [currentYear, setCurrentYear] = useState(nowDate.getFullYear());
   const store = useStore();
+  const sub = useSubscriptionStatus();
   const bookings = store.bookings;
   const calendarBlocks = store.calendarBlocks;
   const storeOwners = owners;
@@ -367,11 +369,27 @@ function CalendarPage() {
             <p className="mt-1 text-sm text-gray-500">Property availability at a glance</p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="btn-accent gap-2" onClick={openNewBooking}>
-              <span>+</span> New Booking
-            </button>
+            {sub.active && !sub.loading ? (
+              <button className="btn-accent gap-2" onClick={openNewBooking}>
+                <span>+</span> New Booking
+              </button>
+            ) : (
+              <button
+                className="btn-accent gap-2 opacity-70"
+                title={PLAN_INACTIVE_MSG}
+                onClick={() => (window.location.href = "/plan")}
+              >
+                <span>+</span> New Booking — Plan Required
+              </button>
+            )}
           </div>
         </div>
+        {!sub.active && !sub.loading && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800 flex items-center justify-between gap-3">
+            <span><strong>Your plan is inactive.</strong> Renew to keep creating bookings — existing data stays viewable.</span>
+            <a href="/plan" className="shrink-0 font-medium underline">Choose a plan →</a>
+          </div>
+        )}
 
         {/* Date Range Search + Available Only + Quick Book */}
         <div className="card p-3">

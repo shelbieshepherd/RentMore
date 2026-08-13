@@ -10,6 +10,7 @@ import {
   type PropertyImage,
 } from "~/lib/data";
 import { useStore } from "~/lib/store";
+import { useSubscriptionStatus, PLAN_INACTIVE_MSG } from "~/lib/use-subscription";
 
 export const Route = createFileRoute("/add-property")({
   component: AddPropertyPage,
@@ -118,6 +119,7 @@ const sectionTitle =
 function AddPropertyPage() {
   const navigate = useNavigate();
   const { addProperty, owners, addOwner } = useStore();
+  const sub = useSubscriptionStatus();
 
   const [saved, setSaved] = useState(false);
   const [savedId, setSavedId] = useState("");
@@ -227,6 +229,11 @@ function AddPropertyPage() {
   };
 
   const handleSubmit = () => {
+    // Hard client-side guard for the paywall (server re-checks in insertProperty)
+    if (!sub.active) {
+      navigate({ to: "/plan" });
+      return;
+    }
     // If creating a new owner, create a real Owner record first
     let ownerId = form.ownerId;
     if (!useExistingOwner && newOwner.name.trim()) {
@@ -321,6 +328,12 @@ function AddPropertyPage() {
     <DashboardLayout currentPath="/add-property">
       <div className="space-y-6">
         {/* ── Header ── */}
+        {!sub.active && !sub.loading && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800 flex items-center justify-between gap-3 mb-6">
+            <span><strong>Your plan is inactive.</strong> Renew to keep adding properties — existing data stays viewable.</span>
+            <a href="/plan" className="shrink-0 font-medium underline">Choose a plan →</a>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <div>
             <button

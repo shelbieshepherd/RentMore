@@ -79,6 +79,89 @@ export const updateCompanySubscription = createServerFn()
     `;
     return { success: true };
   });
+// ── Subscription paywall ──
+const PAID_TIERS = new Set(["starter", "growth", "pro", "enterprise"]);
+// Active = demo company (exempt) OR paid tier (starter/growth/pro/enterprise,
+// not a "_pending" marker) with a non-expired subscription_expires_at.
+export const fetchSubscriptionStatus = createServerFn()
+  .validator((data: { companyId: string }) => data)
+  .handler(async ({ data }) => {
+    if (data.companyId === DEFAULT_COMPANY_ID) {
+      return { tier: "demo", expiresAt: null, active: true, isDemo: true };
+    }
+    const rows = await sql()`
+      SELECT subscription_tier, subscription_expires_at
+      FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1
+    `;
+    if (!rows.length) throw new Error("Company not found");
+    const tier: string | null = rows[0].subscription_tier || null;
+    const expiresAt: Date | null = rows[0].subscription_expires_at
+      ? new Date(rows[0].subscription_expires_at)
+      : null;
+    const paid = !!tier && PAID_TIERS.has(tier);
+    const active = paid && !!expiresAt && expiresAt.getTime() > Date.now();
+    return {
+      tier,
+      expiresAt: expiresAt ? expiresAt.toISOString() : null,
+      active,
+      isDemo: false,
+    };
+  });
+// Trusted success-return marking: records a Stripe Checkout session id
+// idempotently (UNIQUE session_id) and marks the company paid for 30 days.
+// v1 verification model: no managed-account API keys — the owner reconciles
+// in their Stripe dashboard; this fn is also the manual reconcile path
+// (call it with a known-good session id to flip a company to paid).
+export const markCompanyPaid = createServerFn()
+  .validator((data: { companyId: string; tier: string; sessionId: string }) => data)
+  .handler(async ({ data }) => {
+    if (data.companyId === DEFAULT_COMPANY_ID) {
+      return { success: true, alreadyMarked: false, demo: true };
+    }
+    const tier = data.tier.toLowerCase();
+    if (!PAID_TIERS.has(tier)) throw new Error("Invalid tier: " + data.tier);
+    // Idempotency: same session id never double-marks (also blocks replay).
+    const existing = await sql()`
+      SELECT company_id, tier FROM subscription_checkouts
+      WHERE session_id = ${data.sessionId} LIMIT 1
+    `;
+    if (existing.length > 0) {
+      return { success: true, alreadyMarked: true, tier: existing[0].tier };
+    }
+    const expiresAt = new Date(Date.now() + 30 * 86400000);
+    await sql().transaction((tx) => [
+      tx`
+        UPDATE companies
+        SET subscription_tier = ${tier},
+            subscription_expires_at = ${expiresAt.toISOString()}::timestamptz
+        WHERE id = ${data.companyId}::uuid
+      `,
+      tx`
+        INSERT INTO subscription_checkouts (session_id, company_id, tier)
+        VALUES (${data.sessionId}, ${data.companyId}::uuid, ${tier})
+      `,
+    ]);
+    return { success: true, alreadyMarked: false, tier, expiresAt: expiresAt.toISOString() };
+  });
+// Hard server-side gate for the paywall. Demo exempt; throws a friendly error
+// the UI surfaces ("Your plan is inactive — renew to keep using RentMore").
+// Exported (plain fn, no Start context) so tests/E2E can call it directly.
+export async function assertSubscriptionActive(companyId: string): Promise<void> {
+  if (companyId === DEFAULT_COMPANY_ID) return;
+  const rows = await sql()`
+    SELECT subscription_tier, subscription_expires_at
+    FROM companies WHERE id = ${companyId}::uuid LIMIT 1
+  `;
+  const tier: string | null = rows[0]?.subscription_tier || null;
+  const expiresAt: Date | null = rows[0]?.subscription_expires_at
+    ? new Date(rows[0].subscription_expires_at)
+    : null;
+  const paid = !!tier && PAID_TIERS.has(tier);
+  const active = paid && !!expiresAt && expiresAt.getTime() > Date.now();
+  if (!active) {
+    throw new Error("Your plan is inactive — renew to keep using RentMore");
+  }
+}
 
 export const registerCompany = createServerFn()
   .validator((data: { name: string; email: string; password: string }) => data)
@@ -92,11 +175,12 @@ export const registerCompany = createServerFn()
     if (existing.length > 0) {
       throw new Error("EMAIL_TAKEN");
     }
-    // Create company
+    // Create company — new signups land unpaid ('free', no expiry) until they
+    // purchase a plan through the /plan page (hard paywall, no free trial).
     const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const companyRows = await sql()`
       INSERT INTO companies (name, slug, subscription_tier)
-      VALUES (${data.name}, ${slug}, 'starter')
+      VALUES (${data.name}, ${slug}, 'free')
       RETURNING id
     `;
     const companyId = companyRows[0].id;
@@ -377,6 +461,7 @@ export const insertProperty = createServerFn()
     petPolicy?: string; propertySubtype?: string;
   }) => data)
   .handler(async ({ data }) => {
+    await assertSubscriptionActive(data.companyId);
     const rows = await sql()`
       INSERT INTO properties (company_id, owner_id, name, address, property_type,
         monthly_rent, status, nightly_rate, beds, bed_config, baths, image_url,
@@ -417,6 +502,7 @@ export const fetchBookings = createServerFn()
 export const insertBooking = createServerFn()
   .validator((data: { companyId: string; propertyId: string; guestName: string; guestEmail: string; guestPhone?: string; guestAddress?: string; startDate: string; endDate: string; nightlyRate: number; status: string; totalAmount: number; source: string; commissionRate: number; createdBy: string; cleaningFee?: number; linenFee?: number; taxAmount?: number }) => data)
   .handler(async ({ data }) => {
+    await assertSubscriptionActive(data.companyId);
     const rn = `BK-${Date.now().toString(36).toUpperCase()}`;
     const rows = await sql()`
       INSERT INTO bookings (company_id, property_id, guest_name, guest_email, guest_phone, guest_address, start_date, end_date, nightly_rate, status, total_amount, source, reservation_number, commission_rate, created_by, cleaning_fee, linen_fee, tax_amount)

@@ -7,6 +7,7 @@ import {
   formatCurrency, getStatusColor, formatDate, getCancellationGuideline, type Property, type PropertyGuide,
 } from "~/lib/data";
 import { useStore } from "~/lib/store";
+import { useSubscriptionStatus, PLAN_INACTIVE_MSG } from "~/lib/use-subscription";
 import { PhotoUploader } from "~/lib/photo-upload";
 
 type FilterType = "all" | "long-term" | "short-term";
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/properties")({
 function PropertiesPage() {
   const navigate = useNavigate();
   const { properties, addProperty, updateProperty, bookings, owners: storeOwners, propertyGuides, updatePropertyGuide } = useStore();
+  const sub = useSubscriptionStatus();
   const [filter, setFilter] = useState<FilterType>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editProp, setEditProp] = useState<Property | null>(null);
@@ -86,10 +88,27 @@ function PropertiesPage() {
             <h1 className="text-2xl font-bold text-gray-900">Properties</h1>
             <p className="mt-1 text-sm text-gray-500">Manage your {properties.length} properties</p>
           </div>
-          <a href="/add-property" className="btn-primary gap-2 inline-flex items-center">
-            <span>+</span> Add Property
-          </a>
+          {sub.active && !sub.loading ? (
+            <a href="/add-property" className="btn-primary gap-2 inline-flex items-center">
+              <span>+</span> Add Property
+            </a>
+          ) : (
+            <button
+              onClick={() => navigate({ to: "/plan" })}
+              title={PLAN_INACTIVE_MSG}
+              className="btn-primary gap-2 inline-flex items-center opacity-70"
+              style={{ backgroundColor: "#0f3c52", color: "white" }}
+            >
+              <span>+</span> Add Property — Plan Required
+            </button>
+          )}
         </div>
+        {!sub.active && !sub.loading && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800 flex items-center justify-between gap-3">
+            <span><strong>Your plan is inactive.</strong> Renew to keep adding properties — existing data stays viewable.</span>
+            <a href="/plan" className="shrink-0 font-medium underline">Choose a plan →</a>
+          </div>
+        )}
 
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">

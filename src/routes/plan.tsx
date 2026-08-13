@@ -2,11 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useAuth } from "~/lib/auth";
 import { DashboardLayout } from "~/lib/layout";
-
 export const Route = createFileRoute("/plan")({
   component: PlanPage,
 });
-
 const PLANS = [
   {
     id: "starter",
@@ -41,22 +39,66 @@ const PLANS = [
     desc: "Everything in Pro plus dedicated support, custom onboarding, priority feature requests.",
   },
 ];
-
+type Status = { tier: string | null; expiresAt: string | null; active: boolean; isDemo: boolean };
 function PlanPage() {
   const { user } = useAuth();
   const [currentTier, setCurrentTier] = useState<string | null>(null);
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
-
-  // Fetch real tier from DB
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [active, setActive] = useState(true);
+  const [statusMsg, setStatusMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [activating, setActivating] = useState(false);
+  // Fetch real tier + expiry + active flag from DB
   useEffect(() => {
     if (!user?.companyId) return;
-    import("~/lib/db-queries").then(({ fetchCompanyPlan }) => {
-      fetchCompanyPlan({ data: { companyId: user.companyId! } })
-        .then(tier => setCurrentTier(typeof tier === "string" ? tier : null))
+    import("~/lib/db-queries").then(({ fetchSubscriptionStatus }) => {
+      fetchSubscriptionStatus({ data: { companyId: user.companyId! } })
+        .then((res: Status) => {
+          setCurrentTier(res?.tier ?? null);
+          setExpiresAt(res?.expiresAt ?? null);
+          setActive(res?.active !== false);
+        })
         .catch(() => {});
     });
   }, [user?.companyId]);
-
+  // Handle the Stripe checkout success return: ?session_id=... (&tier=...)
+  // Records the session id idempotently and marks the company paid.
+  useEffect(() => {
+    if (!user?.companyId) return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    if (!sessionId) return;
+    const tier = params.get("tier") || sessionStorage.getItem("rm_pending_tier") || "starter";
+    setActivating(true);
+    import("~/lib/db-queries")
+      .then(({ markCompanyPaid }) =>
+        markCompanyPaid({ data: { companyId: user.companyId!, tier, sessionId } }),
+      )
+      .then((res: any) => {
+        setStatusMsg(
+          res?.alreadyMarked
+            ? { kind: "ok", text: "Your plan is already active — no double charge." }
+            : { kind: "ok", text: `✅ Payment received! Your ${tier.charAt(0).toUpperCase() + tier.slice(1)} plan is active for 30 days.` },
+        );
+        sessionStorage.removeItem("rm_pending_tier");
+        // Refresh status
+        return import("~/lib/db-queries").then(({ fetchSubscriptionStatus }) =>
+          fetchSubscriptionStatus({ data: { companyId: user.companyId! } }),
+        );
+      })
+      .then((res: Status) => {
+        setCurrentTier(res?.tier ?? null);
+        setExpiresAt(res?.expiresAt ?? null);
+        setActive(res?.active !== false);
+      })
+      .catch((e: any) => {
+        setStatusMsg({ kind: "err", text: e?.message || "Could not activate your plan — try again or contact us." });
+      })
+      .finally(() => setActivating(false));
+    // Clean the query params so a refresh doesn't re-trigger (harmless anyway —
+    // the server fn is idempotent on session_id).
+    window.history.replaceState({}, "", "/plan");
+  }, [user?.companyId]);
   async function handleSubscribe(planId: string, link: string) {
     if (!user?.companyId) return;
     const pendingTier = planId + "_pending";
@@ -65,17 +107,16 @@ function PlanPage() {
       const { updateCompanySubscription } = await import("~/lib/db-queries");
       await updateCompanySubscription({ data: { companyId: user.companyId, subscriptionTier: pendingTier } });
     } catch { /* best-effort */ }
+    sessionStorage.setItem("rm_pending_tier", planId);
     setCurrentTier(pendingTier);
     setPendingPlan(planId);
     window.open(link, "_blank");
   }
-
   function tierDisplay(tier: string | null): string {
     if (!tier || tier === "free") return "Free";
     if (tier.endsWith("_pending")) return tier.replace("_pending", "").replace(/^./, c => c.toUpperCase()) + " (activation pending)";
     return tier.charAt(0).toUpperCase() + tier.slice(1);
   }
-
   return (
     <DashboardLayout currentPath="/plan">
       <div className="max-w-5xl mx-auto py-8 px-4">
@@ -83,15 +124,43 @@ function PlanPage() {
         <p className="text-sm text-gray-500 mb-8">
           Guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) — you receive 100% of every payment. Billed monthly via Stripe checkout.
         </p>
-
+        {/* Status banner */}
+        <div className={`mb-6 p-4 rounded-xl text-sm border ${
+          active ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+        }`}>
+          {user?.companyId === "00000000-0000-0000-0000-000000000001" ? (
+            <strong>Demo account — everything is unlocked.</strong>
+          ) : active ? (
+            <>
+              <strong>Your plan is active:</strong> {tierDisplay(currentTier)}
+              {expiresAt && <> · renews/pays next on <span className="font-medium">{new Date(expiresAt).toLocaleDateString()}</span></>}
+            </>
+          ) : (
+            <>
+              <strong>Your plan is inactive — renew to keep using RentMore.</strong>{" "}
+              Your current plan is {tierDisplay(currentTier)}. Existing data stays viewable; pick a plan below to reactivate creation of properties & bookings.
+            </>
+          )}
+        </div>
+        {statusMsg && (
+          <div className={`mb-6 p-4 rounded-xl text-sm border ${
+            statusMsg.kind === "ok" ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+          }`}>
+            {statusMsg.text}
+          </div>
+        )}
+        {activating && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+            ⏳ Activating your plan…
+          </div>
+        )}
         {pendingPlan && (
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
             <strong>⏳ Activation pending:</strong> You selected the{" "}
             <strong>{pendingPlan.charAt(0).toUpperCase() + pendingPlan.slice(1)}</strong> plan.
-            Your payment is being processed by Stripe. We'll activate your plan once the payment is confirmed.
+            Complete payment in the Stripe tab, then you'll be redirected back and your plan activates automatically.
           </div>
         )}
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {PLANS.map((plan) => (
             <div
@@ -114,7 +183,8 @@ function PlanPage() {
               <p className="text-sm text-gray-600 mb-6 flex-1">{plan.desc}</p>
               <button
                 onClick={() => handleSubscribe(plan.id, plan.link)}
-                className="btn-primary w-full py-2.5 rounded-lg text-sm font-medium"
+                disabled={activating}
+                className="btn-primary w-full py-2.5 rounded-lg text-sm font-medium disabled:opacity-60"
                 style={{ backgroundColor: "#0f3c52", color: "white" }}
               >
                 Pay &amp; Activate
@@ -125,12 +195,10 @@ function PlanPage() {
             </div>
           ))}
         </div>
-
         <p className="text-xs text-gray-400 mt-6 text-center">
           Current plan: <span className="font-medium">{tierDisplay(currentTier)}</span>.
           {currentTier && currentTier.endsWith("_pending") && " Plan changes are reflected after your payment is confirmed."}
         </p>
-
         <div className="mt-8 bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800">
           <strong>💡 Enterprise?</strong> For 75+ units, our Enterprise plan starts at $499/month.{" "}
           <a href="mailto:shelbie@sheprealty.com" className="underline">Contact us</a> for custom pricing and onboarding.
