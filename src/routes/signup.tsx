@@ -10,6 +10,7 @@ function SignupPage() {
   const { register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -35,7 +36,7 @@ function SignupPage() {
     }
 
     setLoading(true);
-    const result = await register(name, email, password);
+    const result = await register(name, companyName, email, password);
     setLoading(false);
 
     if (result.success) {
@@ -70,15 +71,26 @@ function SignupPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Company / Your Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Your name</label>
               <input
                 className="input-field"
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder="e.g. Eastman Premier Rentals"
+                placeholder="e.g. Jane Smith"
                 required
                 autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Company name</label>
+              <input
+                className="input-field"
+                type="text"
+                value={companyName}
+                onChange={e => setCompanyName(e.target.value)}
+                placeholder="e.g. Eastman Premier Rentals"
+                required
               />
             </div>
             <div>

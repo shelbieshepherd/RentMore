@@ -18,7 +18,7 @@ type AuthContextType = {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, companyName: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   allUsers: User[];
 };
@@ -169,10 +169,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: false, error: "Invalid email or password" };
   };
 
-  const register = async (name: string, email: string, password: string): Promise<{ success: boolean; needsVerification?: boolean; companyId?: string; error?: string }> => {
+  const register = async (name: string, companyName: string, email: string, password: string): Promise<{ success: boolean; needsVerification?: boolean; companyId?: string; error?: string }> => {
     try {
       const { registerCompany, queueVerificationEmail } = await import("./db-queries");
-      const result = await registerCompany({ data: { name, email, password } });
+      const result = await registerCompany({ data: { name, companyName, email, password } });
       // Queue verification email (best-effort, non-blocking)
       if (result.verifyToken) {
         queueVerificationEmail({ data: { email, token: result.verifyToken } }).catch(() => {});

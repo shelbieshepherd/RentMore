@@ -164,7 +164,7 @@ export async function assertSubscriptionActive(companyId: string): Promise<void>
 }
 
 export const registerCompany = createServerFn()
-  .validator((data: { name: string; email: string; password: string }) => data)
+  .validator((data: { name: string; companyName: string; email: string; password: string }) => data)
   .handler(async ({ data }) => {
     // Normalize email to lowercase so login is case-insensitive end-to-end.
     const email = data.email.trim().toLowerCase();
@@ -177,10 +177,10 @@ export const registerCompany = createServerFn()
     }
     // Create company — new signups land unpaid ('free', no expiry) until they
     // purchase a plan through the /plan page (hard paywall, no free trial).
-    const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const companyRows = await sql()`
       INSERT INTO companies (name, slug, subscription_tier)
-      VALUES (${data.name}, ${slug}, 'free')
+      VALUES (${data.companyName}, ${slug}, 'free')
       RETURNING id
     `;
     const companyId = companyRows[0].id;
