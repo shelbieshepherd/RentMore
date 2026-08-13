@@ -154,7 +154,7 @@ function SettingsPaymentsPage() {
 
             {/* Fee summary */}
             <div className="stat-card p-8">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">How fees work — guests pay, you receive 100%</h3>
+              <h3 className="text-base font-semibold text-gray-900 mb-4">How fees work — guests pay, you keep it all</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="rounded-xl border border-gray-100 p-4">
                   <p className="text-sm text-gray-500">Credit card</p>
@@ -169,8 +169,9 @@ function SettingsPaymentsPage() {
               </div>
               <p className="mt-4 text-xs text-gray-400">
                 Payments are processed through your own Stripe account — you stay the merchant of record and
-                receive 100% of every booking. Guests pay a convenience fee (3.5% card / 1% + $0.25 ACH); RentMore
-                keeps a small share of that fee after Stripe's processing cost. Chargebacks, refunds, and disputes
+                receive 100% of every booking. Guests pay a convenience fee (3.5% card / 1% + $0.25 ACH) —
+                after Stripe's processing cost, it all goes to you. RentMore takes no transaction fee.
+                Chargebacks, refunds, and disputes
                 are resolved against your Stripe account's balance — RentMore is never the merchant of record and
                 never holds customer funds. You can disable online payments anytime.
               </p>

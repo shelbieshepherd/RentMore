@@ -107,14 +107,14 @@ function AccountingPage() {
             <p className="text-xs text-gray-400 mt-1">{paidTrans.length} transactions</p>
           </div>
           <div className="stat-card">
-            <p className="text-sm text-gray-500">Guest-Paid Convenience Fees</p>
-            <p className="text-3xl font-bold mt-1 text-red-500">{formatCurrency(fees)}</p>
-            <p className="text-xs text-gray-400 mt-1">Guests pay: 3.5% card · 1% + $0.25 ACH</p>
+            <p className="text-sm text-gray-500">Guest-Paid Convenience Fees (kept by you)</p>
+            <p className="text-3xl font-bold mt-1 text-green-600">{formatCurrency(fees)}</p>
+            <p className="text-xs text-gray-400 mt-1">Guests pay: 3.5% card · 1% + $0.25 ACH — yours after Stripe's cost</p>
           </div>
           <div className="stat-card">
             <p className="text-sm text-gray-500">Net Revenue (to you)</p>
             <p className="text-3xl font-bold mt-1" style={{ color: "#0f3c52" }}>{formatCurrency(net)}</p>
-            <p className="text-xs text-gray-400 mt-1">You keep 100% of every payment</p>
+            <p className="text-xs text-gray-400 mt-1">You keep 100% of every payment + convenience-fee leftover</p>
           </div>
           <div className="stat-card">
             <p className="text-sm text-gray-500">Outstanding</p>

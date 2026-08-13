@@ -331,7 +331,7 @@ function PaymentsPage() {
                 <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
                   <div className="flex justify-between"><span>Card</span><span className="font-semibold">3.5% convenience fee (guest pays)</span></div>
                   <div className="flex justify-between mt-1"><span>ACH</span><span className="font-semibold">1% + $0.25 (guest pays)</span></div>
-                  <div className="flex justify-between mt-1 border-t border-gray-200 pt-1"><span>You receive</span><span className="font-semibold text-emerald-600">100% of every payment</span></div>
+                  <div className="flex justify-between mt-1 border-t border-gray-200 pt-1"><span>You keep</span><span className="font-semibold text-emerald-600">100% of every payment — the guest-paid fee covers Stripe's cost, the rest is yours</span></div>
                 </div>
               </div>
 
@@ -691,7 +691,7 @@ function PaymentsPage() {
                       <span>{formatCurrency(rp.amount)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">No fee — you receive 100% of the booking</span>
+                      <span className="text-gray-500">No fee — you keep 100% of the booking</span>
                       <span>{formatCurrency(0)}</span>
                     </div>
                     <div className="flex justify-between border-t pt-1 font-semibold">
@@ -824,7 +824,7 @@ function PaymentsPage() {
                     </div>
                     {onlineReady && (
                       <p className="text-xs text-gray-400">
-                        The guest pays a {formatCurrency(checkoutFee)} convenience fee on top of your booking amount. You receive 100% of the booking — nothing is deducted from your proceeds.
+                        The guest pays a {formatCurrency(checkoutFee)} convenience fee on top of your booking amount. You receive 100% of the booking — plus the leftover after Stripe's cost. RentMore takes no transaction fee.
                       </p>
                     )}
                   </div>

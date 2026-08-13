@@ -112,7 +112,7 @@ function VerifyPendingPage() {
                 <h3 className="text-base font-semibold text-gray-900">Get ready to collect payments</h3>
                 <p className="text-sm text-gray-500 mt-1">
                   Once you've verified your email, connect your own Stripe account to start collecting
-                  rent and booking payments online (guests pay a 3.5% card convenience fee / 1% + $0.25 ACH — you receive 100%).
+                  rent and booking payments online (guests pay a 3.5% card convenience fee / 1% + $0.25 ACH — you keep it all; RentMore takes no transaction fee).
                 </p>
                 <button
                   onClick={() => navigate({ to: "/settings/payments" })}

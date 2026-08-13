@@ -24,7 +24,7 @@
 import type Stripe from "stripe";
 import { sql } from "~/db";
 import { verifyWebhookEvent } from "./stripe";
-import { processingFee } from "./fees";
+import { stripeFeeCents } from "./fees";
 
 interface WebhookMeta {
   company_id?: string;
@@ -88,17 +88,21 @@ async function handlePaymentIntent(
   if (!md.company_id) return; // no company attribution — nothing to reconcile
   const bookingId = md.booking_id;
   const propertyId = await resolvePropertyId(md.property_id, bookingId);
-  const bookingAmountCents = md.booking_amount_cents ? Number(md.booking_amount_cents) : NaN;
+  const pmNetCentsMeta = md.pm_net_cents ? Number(md.pm_net_cents) : NaN;
   const paymentType = md.payment_type === "deposit" ? "deposit" : "charge";
   const method = md.method === "ach" ? "ach" : "credit_card";
-  // Guest-paid convenience model: pi.amount is booking + convenience fee; the
-  // PM receives exactly the booking amount (metadata) — record that so payouts
-  // match what the PM actually nets.
-  const amountCents = Number.isFinite(bookingAmountCents) ? bookingAmountCents : pi.amount || 0;
-  const feeCents =
-    typeof pi.application_fee_amount === "number"
-      ? pi.application_fee_amount
-      : processingFee(amountCents, method === "ach" ? "ACH" : "credit card");
+  // Fee model (owner Aug 13, FINAL): RentMore takes zero transaction fee. The
+  // guest paid booking + convenience fee (pi.amount); Stripe's processing cost
+  // comes out of it; the PM receives the rest (booking + leftover). Record the
+  // PM-net amount so payouts equal exactly what the PM receives.
+  const pmNet = Math.max(
+    Number.isFinite(pmNetCentsMeta)
+      ? pmNetCentsMeta
+      : (pi.amount || 0) - stripeFeeCents(pi.amount || 0, method === "ach" ? "ACH" : "credit card"),
+    0,
+  );
+  const amountCents = pmNet;
+  const feeCents = stripeFeeCents(pi.amount || 0, method === "ach" ? "ACH" : "credit card");
 
   const inserted = await upsertPaymentRow({
     companyId: md.company_id,

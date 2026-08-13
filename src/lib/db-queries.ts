@@ -3,7 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
 import { randomBytes } from "node:crypto";
-import { guestTotalCents, platformFeeCents } from "./fees";
+import { guestTotalCents, pmNetCents } from "./fees";
 import {
   calculateOwnerPayouts,
   type PayoutOwner,
@@ -793,14 +793,14 @@ export const createCheckoutSession = createServerFn()
   .handler(async ({ data }) => {
     const isAch = data.method === "ach";
     const method = isAch ? "ACH" : "credit card";
-    // Guest-paid convenience fee model (owner decision Aug 13): the guest is
-    // charged booking + convenience fee (3.5% card / 1% + $0.25 ACH); RentMore
-    // keeps the spread after Stripe's cost as application_fee_amount; the PM
-    // nets exactly the booking amount.
+    // Guest-paid convenience fee model (owner decision Aug 13, FINAL): the
+    // guest is charged booking + convenience fee (3.5% card / 1% + $0.25 ACH);
+    // after Stripe's cost the ENTIRE leftover goes to the PM. RentMore takes
+    // ZERO transaction fee — no application_fee_amount is ever set.
     const guestTotal = guestTotalCents(data.amountCents, method);
-    const feeCents = platformFeeCents(data.amountCents, method);
+    const pmNet = pmNetCents(data.amountCents, method);
     if (data.companyId === DEFAULT_COMPANY_ID) {
-      return { url: null, sessionId: `cs_demo_${Date.now()}`, mock: true, feeCents, guestTotalCents: guestTotal };
+      return { url: null, sessionId: `cs_demo_${Date.now()}`, mock: true, guestTotalCents: guestTotal, pmNetCents: pmNet };
     }
     const companyRows = await sql()`
       SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
@@ -827,7 +827,8 @@ export const createCheckoutSession = createServerFn()
       company_id: data.companyId,
       payment_type: data.paymentType,
       method: isAch ? "ach" : "card",
-      booking_amount_cents: String(data.amountCents), // what the PM receives
+      booking_amount_cents: String(data.amountCents), // the booking itself
+      pm_net_cents: String(pmNet), // what the PM receives (booking + leftover)
     };
     if (data.bookingId) meta.booking_id = data.bookingId;
     if (data.propertyId) meta.property_id = data.propertyId;
@@ -842,7 +843,7 @@ export const createCheckoutSession = createServerFn()
       ],
       metadata: meta,
       payment_intent_data: {
-        application_fee_amount: feeCents,
+        // No application_fee_amount — RentMore takes zero transaction fee.
         on_behalf_of: company.stripe_connect_account_id, // customer = merchant of record
         metadata: meta,
       },
@@ -850,7 +851,7 @@ export const createCheckoutSession = createServerFn()
       success_url: successUrl,
       cancel_url: cancelUrl,
     });
-    return { url: session.url, sessionId: session.id, feeCents };
+    return { url: session.url, sessionId: session.id, pmNetCents: pmNet };
   });
 
 // Guest-portal booking lookup: resolves by reservation number OR booking UUID

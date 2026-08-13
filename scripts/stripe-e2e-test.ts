@@ -32,14 +32,16 @@
 // when onboarding completes this becomes the full live proof.
 import Stripe from "stripe";
 import { handleStripeWebhook } from "../src/lib/stripe-webhook";
-import { processingFee } from "../src/lib/fees";
+import { guestTotalCents, stripeFeeCents } from "../src/lib/fees";
 
 const CONNECT_CO = "c0f28972-0029-4a6c-979a-fe14cc7bb213"; // Fresh New Co
 // Connected account id is DB-driven — it changes per Connect platform (the old
 // acct_1U3aRHGrO5c9vPRg belongs to the retired sandbox). NULL until the company
 // runs createConnectAccount on the current platform.
 const AMOUNT_CENTS = 100000; // $1,000.00 deposit (8-night block fixture = 2 blocks)
-const CARD_FEE = processingFee(AMOUNT_CENTS, "credit card"); // 2.9%+$0.30 = 2930¢
+// Fee model v2: RentMore takes zero transaction fee; Stripe's cost on the
+// guest total is what gets deducted from the PM's proceeds.
+const CARD_FEE = stripeFeeCents(guestTotalCents(AMOUNT_CENTS, "credit card"), "credit card"); // Stripe cost on guest total
 
 const key = process.env.STRIPE_SECRET_KEY;
 const whsec = process.env.STRIPE_WEBHOOK_SECRET || "whsec_test_chunkD_1234567890abcdef";
@@ -122,7 +124,7 @@ const session = await stripe.checkout.sessions.create({
   mode: "payment",
   line_items: [{ price_data: { currency: "usd", product_data: { name: "RentMore booking deposit" }, unit_amount: AMOUNT_CENTS }, quantity: 1 }],
   metadata: meta,
-  payment_intent_data: { application_fee_amount: CARD_FEE, on_behalf_of: CONNECT_ACCT, metadata: meta },
+  payment_intent_data: { on_behalf_of: CONNECT_ACCT, metadata: meta },
   payment_method_types: ["card"],
   success_url: "https://rentmorevrs.ctonew.app/payments?checkout=success&session_id={CHECKOUT_SESSION_ID}",
   cancel_url: "https://rentmorevrs.ctonew.app/payments?checkout=cancelled",
@@ -141,7 +143,7 @@ const pi = await stripe.paymentIntents.confirm(session2.payment_intent as string
   },
 });
 check("payment_intent confirmed with test card 4242", pi.status === "succeeded", `status=${pi.status}`);
-check("application_fee_amount on the PI", pi.application_fee_amount === CARD_FEE, `fee=${pi.application_fee_amount} want ${CARD_FEE}`);
+check("NO application fee on the PI (zero platform fee)", pi.application_fee_amount == null, `fee=${pi.application_fee_amount}`);
 check("merchant of record is the connected account", pi.on_behalf_of === CONNECT_ACCT || (pi as any).on_behalf_of === CONNECT_ACCT);
 check("no transfer_data / no destination (no-liability rule)", !pi.transfer_data && !(pi as any).destination);
 
@@ -161,7 +163,7 @@ check("booking/property attached", !!row?.booking_id && !!row?.property_id);
 check("payment_type = deposit", row?.payment_type === "deposit", String(row?.payment_type));
 check("method = credit_card", row?.method === "credit_card", String(row?.method));
 check("amount_cents matches", Number(row?.amount_cents) === AMOUNT_CENTS, String(row?.amount_cents));
-check("processing_fee_cents matches fees.ts", Number(row?.processing_fee_cents) === CARD_FEE, String(row?.processing_fee_cents));
+check("processing_fee_cents = Stripe cost from fees.ts", Number(row?.processing_fee_cents) === CARD_FEE, String(row?.processing_fee_cents));
 check("status completed", row?.status === "completed", String(row?.status));
 const depositAfter = Number((await q("SELECT deposit_collected_cents FROM bookings WHERE id = $1::uuid", booking.id))[0].deposit_collected_cents);
 check("deposit ledgered once (+$1,000)", depositAfter === depositBefore + AMOUNT_CENTS, `${depositBefore}→${depositAfter}`);
@@ -180,7 +182,7 @@ console.log("\n--- payment_intent.payment_failed ---");
 const failId = `pi_e2e_fail_${Date.now()}`;
 res = await signAndSend({ id: `evt_e2e_f_${Date.now()}`, object: "event", type: "payment_intent.payment_failed",
   data: { object: { id: failId, object: "payment_intent", amount: AMOUNT_CENTS, currency: "usd",
-    application_fee_amount: CARD_FEE, metadata: meta } } });
+    metadata: meta } } });
 check("failed 200", res.status === 200);
 const frow = (await q("SELECT status FROM payments WHERE stripe_payment_intent_id = $1", failId))[0];
 check("failed row status=failed", frow?.status === "failed", String(frow?.status));

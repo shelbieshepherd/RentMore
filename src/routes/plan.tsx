@@ -122,7 +122,7 @@ function PlanPage() {
       <div className="max-w-5xl mx-auto py-8 px-4">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Plan</h1>
         <p className="text-sm text-gray-500 mb-8">
-          Guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) — you receive 100% of every payment. Billed monthly via Stripe checkout.
+          Guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) — you receive 100% of every payment and keep the convenience fee after Stripe's cost. RentMore takes no transaction fee. Billed monthly via Stripe checkout.
         </p>
         {/* Status banner */}
         <div className={`mb-6 p-4 rounded-xl text-sm border ${

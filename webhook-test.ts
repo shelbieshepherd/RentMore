@@ -1,8 +1,9 @@
 // Chunk D webhook E2E test — signs synthetic Stripe events and exercises
 // handleStripeWebhook against the live DB, then cleans up every mutation.
-// Run: bun run /tmp/webhook-test.ts   (from /home/team/shared/site)
+// Run: bun run webhook-test.ts   (from /home/team/shared/site)
 import Stripe from "stripe";
 import { handleStripeWebhook } from "./src/lib/stripe-webhook";
+import { guestTotalCents, stripeFeeCents, pmNetCents } from "./src/lib/fees";
 
 const secret = "whsec_test_chunkD_1234567890abcdef";
 process.env.STRIPE_WEBHOOK_SECRET = secret;
@@ -57,8 +58,14 @@ console.log(`fixtures: connected acct=${CONNECT_ACCT} onboardingComplete=${compa
 
 const PI_OK = "pi_test_chunkD_succeeded_001";
 const PI_FAIL = "pi_test_chunkD_failed_001";
-const AMOUNT = 50000; // $500 deposit
-const FEE = Math.round(AMOUNT * 0.029 + 30); // card processingFee
+const AMOUNT = 50000; // $500 deposit (booking amount)
+// Fee model v2 (owner Aug 13, FINAL): guest pays booking + 3.5% convenience
+// fee; Stripe's cost comes out of it; the PM receives the rest. RentMore takes
+// zero transaction fee (no application_fee_amount). Reference: guest $517.50,
+// Stripe $15.31, PM nets $502.19.
+const GUEST_TOTAL = guestTotalCents(AMOUNT, "credit card"); // 51750
+const STRIPE_FEE = stripeFeeCents(GUEST_TOTAL, "credit card"); // 1531
+const PM_NET = pmNetCents(AMOUNT, "credit card"); // 50219
 
 const piEvent = (type: string, pi: Record<string, unknown>) => ({
   id: `evt_test_chunkD_${Date.now()}`,
@@ -75,10 +82,9 @@ const piEvent = (type: string, pi: Record<string, unknown>) => ({
 const makePi = (id: string, meta: Record<string, string>, extra: Record<string, unknown> = {}) => ({
   id,
   object: "payment_intent",
-  amount: AMOUNT,
+  amount: GUEST_TOTAL,
   currency: "usd",
   status: "succeeded",
-  application_fee_amount: FEE,
   payment_method_types: ["card"],
   metadata: meta,
   ...extra,
@@ -90,6 +96,8 @@ const okMeta = {
   property_id: booking.property_id,
   payment_type: "deposit",
   method: "card",
+  booking_amount_cents: String(AMOUNT),
+  pm_net_cents: String(PM_NET),
 };
 
 // ── 1. missing signature → 400 ──
@@ -112,15 +120,15 @@ if (payRow) {
   check("property matches", payRow.property_id === booking.property_id);
   check("payment_type=deposit", payRow.payment_type === "deposit");
   check("method=credit_card", payRow.method === "credit_card");
-  check("amount_cents=50000", payRow.amount_cents === AMOUNT);
+  check("amount_cents = PM net (50219)", payRow.amount_cents === PM_NET, `got=${payRow.amount_cents} want=${PM_NET}`);
   check("status=completed", payRow.status === "completed");
-  check("processing_fee_cents matches fees.ts", payRow.processing_fee_cents === FEE, `got=${payRow.processing_fee_cents} want=${FEE}`);
+  check("processing_fee_cents = Stripe's cost (1531)", payRow.processing_fee_cents === STRIPE_FEE, `got=${payRow.processing_fee_cents} want=${STRIPE_FEE}`);
 }
 const depAfter = (await q(
   "SELECT deposit_collected_cents FROM bookings WHERE id = $1::uuid", booking.id,
 ))[0] as any;
-check("deposit_collected bumped by $500", depAfter.deposit_collected_cents === (Number(booking.deposit_collected_cents) + AMOUNT),
-  `got=${depAfter.deposit_collected_cents} want=${Number(booking.deposit_collected_cents) + AMOUNT}`);
+check("deposit_collected bumped by PM net (50219)", depAfter.deposit_collected_cents === (Number(booking.deposit_collected_cents) + PM_NET),
+  `got=${depAfter.deposit_collected_cents} want=${Number(booking.deposit_collected_cents) + PM_NET}`);
 
 // ── 3. idempotency: replay same event → no double insert ──
 console.log("\n3) idempotency (Stripe retry)");

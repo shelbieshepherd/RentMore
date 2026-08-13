@@ -1,13 +1,14 @@
 // Shared fee calculations — single source of truth for payments + reports
 //
-// Fee model (owner decision, Aug 13): Streamline-style guest-paid convenience
-// fees on BOTH rails. The guest pays a convenience fee on top of the booking
-// amount; the PM nets 100% of the booking; RentMore keeps the spread after
-// Stripe's processing cost (application_fee_amount).
+// Fee model (owner decision, Aug 13 — FINAL): Streamline-style guest-paid
+// convenience fees on BOTH rails. The guest pays a convenience fee on top of
+// the booking amount; after Stripe's processing cost, the ENTIRE leftover goes
+// to the company using RentMore. RentMore takes ZERO transaction fee — its
+// revenue is subscription-only (application_fee_amount is never set).
 //   - Card: guest +3.5% (Stripe cost 2.9% + $0.30)
 //   - ACH:  guest +1% + $0.25 (Stripe ACH cost 0.8%, capped at $5.00)
+// Reference (card, B=$1,000): guest $1,035.00, Stripe $30.32, PM $1,004.68.
 export type PaymentMethod = "credit card" | "ACH" | "check" | "utility" | "deposit" | "refund" | string;
-
 export const CARD_CONVENIENCE_RATE = 0.035; // guest pays +3.5% on card
 export const CARD_STRIPE_RATE = 0.029; // Stripe card cost 2.9%
 export const CARD_STRIPE_FLAT_CENTS = 30; // + $0.30
@@ -15,7 +16,6 @@ export const ACH_CONVENIENCE_RATE = 0.01; // guest pays +1% on ACH
 export const ACH_CONVENIENCE_FLAT_CENTS = 25; // + $0.25
 export const ACH_STRIPE_RATE = 0.008; // Stripe ACH cost 0.8% (real rate, stripe.com/pricing)
 export const ACH_STRIPE_CAP_CENTS = 500; // capped at $5.00
-
 /** Guest-paid convenience fee on top of the booking amount (cents). */
 export function convenienceFeeCents(amount: number, method: PaymentMethod): number {
   if (method === "ACH") return Math.round(amount * ACH_CONVENIENCE_RATE) + ACH_CONVENIENCE_FLAT_CENTS;
@@ -33,23 +33,12 @@ export function stripeFeeCents(guestTotal: number, method: PaymentMethod): numbe
   return 0;
 }
 /**
- * RentMore platform fee (application_fee_amount): the spread after Stripe's
- * cost, clamped ≥ 0. PM receives exactly the booking amount on both rails.
+ * What the PM receives (cents) = guest total − Stripe's cost = booking amount
+ * PLUS the convenience-fee leftover. RentMore keeps nothing — no application fee.
  */
-export function platformFeeCents(amount: number, method: PaymentMethod): number {
-  if (method !== "credit card" && method !== "ACH") return 0;
+export function pmNetCents(amount: number, method: PaymentMethod): number {
   const guest = guestTotalCents(amount, method);
-  return Math.max(guest - amount - stripeFeeCents(guest, method), 0);
-}
-/**
- * Processing fee for a payment method (cents).
- * Card: guest pays 3.5%, RentMore keeps the spread after Stripe (2.9% + $0.30).
- * ACH:  guest pays 1% + $0.25, RentMore keeps the spread after Stripe (0.8%, $5 cap).
- * All others (check, utility, deposit, refund): $0.
- * PM always nets 100% of the booking amount — the fee is guest-paid.
- */
-export function processingFee(amount: number, method: PaymentMethod): number {
-  return platformFeeCents(amount, method);
+  return guest - stripeFeeCents(guest, method);
 }
 export function processingFeeLabel(method: PaymentMethod): string {
   if (method === "credit card") return "3.5% card convenience fee (guest pays)";

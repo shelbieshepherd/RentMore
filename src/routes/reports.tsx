@@ -898,7 +898,7 @@ function ReportsPage() {
             {/* ── d. Guest-Paid Convenience Fees ── */}
             <div className="card">
               <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h2 className="text-lg font-semibold">💳 Guest-Paid Convenience Fees</h2>
+                <h2 className="text-lg font-semibold">💳 Guest-Paid Convenience Fees <span className="text-sm font-normal text-gray-400">— you keep it all after Stripe's processing cost</span></h2>
                 <button
                   onClick={() => {
                     exportCsv(
@@ -920,7 +920,7 @@ function ReportsPage() {
                   <div className="stat-card border-l-4 border-l-slate-500"><p className="text-sm text-gray-500">Total Fees</p><p className="text-2xl font-bold mt-1 text-slate-600">{formatCurrency(pfCcTotal + pfAchTotal)}</p></div>
                 </div>
                 <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-                  Credit Card: 3.5% convenience fee (guest pays) &nbsp;|&nbsp; ACH: 1% + $0.25 (guest pays) &nbsp;|&nbsp; Check / Utility / Deposit: no convenience fee
+                  Credit Card: 3.5% convenience fee (guest pays) &nbsp;|&nbsp; ACH: 1% + $0.25 (guest pays) &nbsp;|&nbsp; Check / Utility / Deposit: no convenience fee — every guest-paid fee is yours after Stripe's cost
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -942,7 +942,7 @@ function ReportsPage() {
                           <td className="px-4 py-3 font-medium">{r.description}</td>
                           <td className="px-4 py-3 text-right">{formatCurrency(r.amount)}</td>
                           <td className="px-4 py-3 text-xs uppercase text-gray-400">{r.method}</td>
-                          <td className="px-4 py-3 text-right font-medium text-red-600">{formatCurrency(r.fee)}</td>
+                          <td className="px-4 py-3 text-right font-medium text-green-600">{formatCurrency(r.fee)}</td>
                         </tr>
                       ))}
                       {processingFeeRows.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-400">No paid payments in this month</td></tr>}

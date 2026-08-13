@@ -100,8 +100,9 @@ function VacationRentalArticle() {
           creep up as your portfolio grows. Before you commit, do the math at the size you actually expect
           in two years, not the size you are today. Also ask who pays the processing fees: some tools make
           their margin on a slice of every transaction, which you only notice after volume picks up. With
-          RentMore, guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) and you receive 100% of every
-          booking — a flat monthly price with no transaction drag on your revenue is easier to budget than a
+          RentMore, guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) and you keep 100% of every
+          booking — the convenience fee covers Stripe's processing cost and the rest is yours; a flat monthly
+          price with no transaction drag on your revenue is easier to budget than a
           per-unit ladder — see the{" "}
           <a href="/pricing" className="underline" style={{ color: BRAND }}>pricing page</a> for how that works out at different portfolio sizes.
         </p>

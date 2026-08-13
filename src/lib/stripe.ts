@@ -8,7 +8,8 @@
 //
 // Architecture (Option A — separate charges, RentMore never merchant of record):
 //  - PaymentIntents/Checkout sessions are created on the CONNECTED account via
-//    the platform key with `on_behalf_of` + `application_fee_amount`.
+//    the platform key with `on_behalf_of`. NO application_fee_amount — RentMore
+//    takes zero transaction fee.
 //  - NO destination charges, NO direct charges, NO transfer_data — those would
 //    make RentMore the merchant of record and violate the owner's hard rule.
 import Stripe from "stripe";
@@ -37,8 +38,8 @@ export interface ConnectAccountInput {
 
 /** Express connected account (customer = PM company), US, card + ACH capabilities.
  * `transfers` is required alongside `card_payments` for the separate charges &
- * transfers model (`on_behalf_of` + `application_fee_amount`): Stripe rejects
- * `card_payments` without `transfers` on this model. */
+ * transfers model (`on_behalf_of`): Stripe rejects `card_payments` without
+ * `transfers` on this model. */
 export async function createConnectAccount(input: ConnectAccountInput) {
   return stripe().accounts.create({
     type: "express",
@@ -77,7 +78,6 @@ export interface CheckoutSessionInput {
   connectedAccountId: string;
   amountCents: number;
   productName: string;
-  feeCents: number; // RentMore platform fee (application_fee_amount), from src/lib/fees.ts
   successUrl: string;
   cancelUrl: string;
   paymentMethodTypes?: ("card" | "us_bank_account")[];
@@ -85,8 +85,8 @@ export interface CheckoutSessionInput {
 
 /**
  * Stripe-hosted Checkout session charged ON the connected account:
- * `on_behalf_of` makes the customer the merchant of record; `application_fee_amount`
- * moves only RentMore's platform fee into RentMore's own balance. Never destination.
+ * `on_behalf_of` makes the customer the merchant of record. No
+ * application_fee_amount — RentMore takes zero transaction fee. Never destination.
  */
 export async function createCheckoutSession(input: CheckoutSessionInput) {
   return stripe().checkout.sessions.create({
@@ -102,7 +102,6 @@ export async function createCheckoutSession(input: CheckoutSessionInput) {
       },
     ],
     payment_intent_data: {
-      application_fee_amount: input.feeCents,
       on_behalf_of: input.connectedAccountId,
     },
     payment_method_types: input.paymentMethodTypes ?? ["card"],
