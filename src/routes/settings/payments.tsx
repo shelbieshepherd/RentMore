@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "~/lib/layout";
+import { OnboardingWizard } from "~/lib/onboarding-wizard";
 import { useAuth } from "~/lib/auth";
 
 export const Route = createFileRoute("/settings/payments")({ component: SettingsPaymentsPage });
@@ -115,43 +116,41 @@ function SettingsPaymentsPage() {
           </div>
         ) : (
           <>
-            {/* Onboarding status */}
-            <div className="stat-card p-8">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div className="flex items-start gap-3">
-                  <span className="text-3xl">
-                    {status?.onboardingComplete ? "✅" : status?.accountId ? "✏️" : "💳"}
-                  </span>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      {status?.onboardingComplete
-                        ? "Online payments enabled"
-                        : status?.accountId
-                          ? "Finish your Stripe onboarding"
-                          : "Enable online payments"}
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-600 max-w-md">
-                      {status?.onboardingComplete
-                        ? "You can collect rent and booking payments online. Transactions are processed by your own Stripe account — RentMore never holds customer funds."
-                        : status?.accountId
-                          ? "Your Stripe account was created. Complete the hosted onboarding to start accepting payments."
-                          : "Connect your own Stripe account (free, Stripe-hosted). You stay the merchant of record — guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) and you receive 100% of every payment."}
-                    </p>
-                    {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-                    {notice && <p className="mt-2 text-sm text-green-700">{notice}</p>}
+            {status?.onboardingComplete ? (
+              <div className="stat-card p-8">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex items-start gap-3">
+                    <span className="text-3xl">✅</span>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">Online payments enabled</h2>
+                      <p className="mt-1 text-sm text-gray-600 max-w-md">
+                        You can collect rent and booking payments online. Transactions are processed by your own Stripe account — RentMore never holds customer funds.
+                      </p>
+                      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+                      {notice && <p className="mt-2 text-sm text-green-700">{notice}</p>}
+                    </div>
                   </div>
+                  <button
+                    onClick={startOrResumeOnboarding}
+                    disabled={busy}
+                    className="btn-primary gap-2"
+                    style={{ backgroundColor: br }}
+                  >
+                    {busy ? "Opening…" : "Manage on Stripe"}
+                  </button>
                 </div>
-                <button
-                  onClick={startOrResumeOnboarding}
-                  disabled={busy}
-                  className="btn-primary gap-2"
-                  style={{ backgroundColor: br }}
-                >
-                  {busy ? "Opening…" : status?.onboardingComplete ? "Manage on Stripe" : status?.accountId ? "Resume onboarding" : "Start onboarding"}
-                </button>
               </div>
-            </div>
-
+            ) : (
+              <>
+                {notice && <p className="text-sm text-green-700">{notice}</p>}
+                <OnboardingWizard
+                  companyId={companyId}
+                  accountId={status?.accountId ?? null}
+                  onAccountCreated={(id) => setStatus((s) => (s ? { ...s, accountId: id } : s))}
+                  accentColor={br}
+                />
+              </>
+            )}
             {/* Fee summary */}
             <div className="stat-card p-8">
               <h3 className="text-base font-semibold text-gray-900 mb-4">How fees work — guests pay, you keep it all</h3>
