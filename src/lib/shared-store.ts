@@ -75,6 +75,8 @@ export interface StoreState {
   paymentMethods: PaymentMethodEntry[];
   companyId: string;
   dbConnected: boolean;
+  /** Set when an optimistic DB write fails for a real company — never silently drop writes. */
+  persistError: string | null;
 }
 
 // ── Module-level state ──
@@ -100,6 +102,7 @@ const state: StoreState = {
   paymentMethods: clone(seedPaymentMethods),
   companyId: DEFAULT_COMPANY_ID,
   dbConnected: false,
+  persistError: null,
 };
 
 const listeners = new Set<() => void>();
@@ -310,8 +313,27 @@ function mapDbPaymentMethod(pm: any): PaymentMethodEntry {
 }
 
 // ── Mutation functions (optimistic in-memory + silent DB persist) ──
+// Owners created optimistically are tracked so a property referencing a
+// brand-new owner waits for the owner row to land first (same id on both
+// sides — see insertOwner's optional id param). Without this, the property
+// insert races the owner insert and dies on properties_owner_id_fkey.
+const pendingOwnerInserts = new Map<string, Promise<unknown>>();
 function persistQuietly(fn: () => Promise<void>) {
-  (async () => { try { await fn(); } catch { /* DB unavailable — demo mode OK */ } })();
+  (async () => {
+    try { await fn(); }
+    catch (err) {
+      // Never silently drop a failed DB write — surface it so the UI can tell
+      // the user the save actually failed (demo company may legitimately have
+      // no DB write target, but a real company must never be lied to).
+      const msg = err instanceof Error ? err.message : String(err);
+      state.persistError = msg;
+      console.error("[persist] DB write failed:", msg);
+      notify();
+    }
+  })();
+}
+export function clearPersistError() {
+  if (state.persistError) { state.persistError = null; notify(); }
 }
 
 export function addProperty(p: Omit<Property, "id">): Property {
@@ -319,11 +341,15 @@ export function addProperty(p: Omit<Property, "id">): Property {
   state.properties.push(entry); notify();
   persistQuietly(async () => {
     const { insertProperty } = await import("./db-queries");
+    // If this property references an owner created in this session, make sure
+    // the owner row exists first (same id, see addOwner) so the FK resolves.
+    const pendingOwner = pendingOwnerInserts.get(entry.ownerId);
+    if (pendingOwner) await pendingOwner;
     await insertProperty({ data: {
       companyId: state.companyId, name: entry.name, address: entry.address,
       type: entry.type, monthlyRent: entry.monthlyRent, deposit: entry.deposit || 0,
       status: entry.status, ownerId: entry.ownerId,
-      nightlyRate: entry.type === "short-term" ? entry.monthlyRent : undefined,
+      nightlyRate: entry.nightlyRate ?? (entry.type === "short-term" ? entry.monthlyRent : undefined),
       beds: entry.bedrooms, baths: entry.baths,
       bedConfig: entry.beds && entry.beds.length > 0 ? entry.beds : undefined,
       imageUrl: entry.image || undefined,
@@ -493,15 +519,20 @@ export function updatePaymentStatus(id: string, status: Payment["status"]) {
 export function addOwner(o: Omit<Owner, "id">): Owner {
   const entry: Owner = { ...o, id: crypto.randomUUID(), propertyIds: o.propertyIds ?? [] };
   state.owners.push(entry); notify();
-  persistQuietly(async () => {
+  const pending = (async () => {
     const { insertOwner } = await import("./db-queries");
+    // Pass entry.id so the DB row keeps the SAME id as the optimistic entry —
+    // properties referencing this owner then pass their FK check.
     await insertOwner({ data: {
-      companyId: state.companyId, name: entry.name, email: entry.email, phone: entry.phone,
+      companyId: state.companyId, id: entry.id, name: entry.name, email: entry.email, phone: entry.phone,
       bankName: entry.achInfo?.bankName, routingNumber: entry.achInfo?.routingNumber,
       accountNumber: entry.achInfo?.accountNumber,
       payoutMethod: entry.payoutMethod === "check" ? "check" : "ach",
     }});
-  });
+  })();
+  pendingOwnerInserts.set(entry.id, pending);
+  pending.then(() => pendingOwnerInserts.delete(entry.id)).catch(() => pendingOwnerInserts.delete(entry.id));
+  persistQuietly(() => pending);
   return entry;
 }
 export function updateOwner(id: string, updates: Partial<Owner>): Owner | undefined {

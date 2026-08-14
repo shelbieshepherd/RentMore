@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { DashboardLayout } from "~/lib/layout";
-import { properties, formatCurrency, formatDate } from "~/lib/data";
+import { formatCurrency, formatDate } from "~/lib/data";
+import { useStore } from "~/lib/store";
 import { OTA_PROVIDER_LABELS, type OtaProvider } from "~/lib/ota/types";
 import {
   getConnectionByProvider, removeConnection,
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/integrations/$provider")({
 });
 
 function ProviderDetailPage() {
+  const properties = useStore().properties;
   const params = Route.useParams() as { provider: OtaProvider };
   const provider = params.provider;
   const info = OTA_PROVIDER_LABELS[provider];

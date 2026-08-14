@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DashboardLayout } from "~/lib/layout";
-import { properties, formatCurrency, formatDate, getStatusColor } from "~/lib/data";
+import { formatCurrency, formatDate, getStatusColor } from "~/lib/data";
 import { useStore } from "~/lib/store";
 
 export const Route = createFileRoute("/tenants")({
@@ -8,7 +8,7 @@ export const Route = createFileRoute("/tenants")({
 });
 
 function TenantsPage() {
-  const { tenants } = useStore();
+  const { tenants, properties } = useStore();
   const longTermTenants = tenants.filter(t => t.type === "tenant");
   const shortTermGuests = tenants.filter(t => t.type === "guest");
 

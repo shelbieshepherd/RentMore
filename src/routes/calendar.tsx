@@ -2,9 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "~/lib/layout";
 import {
-  properties, calculateFees, feeConfig,
+  calculateFees, feeConfig,
   formatCurrency, formatDate,
-  owners,
 } from "~/lib/data";
 import { useStore } from "~/lib/store";
 import { useSubscriptionStatus, PLAN_INACTIVE_MSG } from "~/lib/use-subscription";
@@ -58,7 +57,10 @@ function CalendarPage() {
   const sub = useSubscriptionStatus();
   const bookings = store.bookings;
   const calendarBlocks = store.calendarBlocks;
-  const storeOwners = owners;
+  // Properties/owners always come from the company-scoped store (DB), never
+  // the static demo seed — demo data must never leak into a real company.
+  const properties = store.properties;
+  const storeOwners = store.owners;
   const addBooking = store.addBooking;
   const [viewMode, setViewMode] = useState<ViewMode>("strip");
   const [tooltip, setTooltip] = useState<{ x: number; y: number; prop: string; propId: string; date: string; type: string; label: string; createdAt?: string; createdBy?: string } | null>(null);
@@ -149,7 +151,7 @@ function CalendarPage() {
       );
       return !hasOverlap && !hasBlock;
     });
-  }, [filterAvailable, searchStart, searchEnd, bookings, calendarBlocks]);
+  }, [filterAvailable, searchStart, searchEnd, bookings, calendarBlocks, properties]);
 
   // Property search filter
   const displayedProps = useMemo(() => {

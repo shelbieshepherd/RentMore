@@ -2,8 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "~/lib/layout";
 import {
-  properties,
-  tenants,
   formatCurrency,
   formatDate,
   getStatusColor,
@@ -50,7 +48,7 @@ function exportCsv(rows: (Payment & { propertyName: string })[]) {
 }
 
 function PaymentsPage() {
-  const { payments, addPayment, updatePaymentStatus } = useStore();
+  const { payments, addPayment, updatePaymentStatus, properties, tenants } = useStore();
 
   // ── state ──
   const [filterTab, setFilterTab] = useState<FilterTab>("all");

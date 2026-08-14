@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "~/lib/layout";
-import { properties, tenants, formatDate, formatCurrency } from "~/lib/data";
+import { formatDate, formatCurrency } from "~/lib/data";
 import { useStore } from "~/lib/store";
 
 export const Route = createFileRoute("/search")({
@@ -11,6 +11,8 @@ export const Route = createFileRoute("/search")({
 function SearchPage() {
   const store = useStore();
   const bookings = store.bookings;
+  const properties = store.properties;
+  const tenants = store.tenants;
 
   // Read query from URL
   const [rawQuery, setRawQuery] = useState(() => {

@@ -964,11 +964,15 @@ export const fetchOwners = createServerFn()
   });
 
 export const insertOwner = createServerFn()
-  .validator((data: { companyId: string; name: string; email?: string; phone?: string; bankName?: string; routingNumber?: string; accountNumber?: string; payoutMethod?: string }) => data)
+  .validator((data: { companyId: string; name: string; id?: string; email?: string; phone?: string; bankName?: string; routingNumber?: string; accountNumber?: string; payoutMethod?: string }) => data)
   .handler(async ({ data }) => {
+    // Optional client-provided id: the optimistic store entry and the DB row must
+    // share one id, otherwise a property referencing this owner fails the FK
+    // (properties_owner_id_fkey) — the historical cause of "property added but
+    // never saved" when creating a new owner in the same form submission.
     const rows = await sql()`
-      INSERT INTO owners (company_id, name, email, phone, bank_name, routing_number, account_number, payout_method)
-      VALUES (${data.companyId}::uuid, ${data.name}, ${data.email || null}, ${data.phone || null},
+      INSERT INTO owners (id, company_id, name, email, phone, bank_name, routing_number, account_number, payout_method)
+      VALUES (${data.id ? data.id : null}::uuid, ${data.companyId}::uuid, ${data.name}, ${data.email || null}, ${data.phone || null},
         ${data.bankName || null}, ${data.routingNumber || null}, ${data.accountNumber || null},
         ${data.payoutMethod || "ach"})
       RETURNING id

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "~/lib/layout";
-import { formatCurrency, formatDate, getStatusColor, type Booking, type OwnerPayout, type PayoutMethod, owners as seedOwners } from "~/lib/data";
+import { formatCurrency, formatDate, getStatusColor, type Booking, type OwnerPayout, type PayoutMethod } from "~/lib/data";
 import { useStore } from "~/lib/store";
 import { fetchTaxRate, upsertTaxRate } from "~/lib/db-queries";
 
@@ -336,8 +336,7 @@ function OwnerPayoutReport({
 }
 
 function ReportsPage() {
-  const { properties, payments, maintenanceRequests, bookings, companyId, ownerPayouts } = useStore();
-  const owners = seedOwners;
+  const { properties, payments, maintenanceRequests, bookings, companyId, ownerPayouts, owners } = useStore();
   const [activeTab, setActiveTab] = useState<ActiveTab>("financial");
 
   // ── Financial tab data ──

@@ -15,6 +15,7 @@ import {
   addStoredPaymentMethod, removeStoredPaymentMethod,
   addOwnerPayout, updateOwnerPayout,
   setCompanyId,
+  clearPersistError,
   type StoreState,
 } from "./shared-store";
 
@@ -53,6 +54,7 @@ interface StoreActions {
   addStoredPaymentMethod: typeof addStoredPaymentMethod;
   removeStoredPaymentMethod: typeof removeStoredPaymentMethod;
   setCompanyId: typeof setCompanyId;
+  clearPersistError: typeof clearPersistError;
 }
 
 type StoreContextType = StoreState & StoreActions;
@@ -84,6 +86,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addOwnerPayout, updateOwnerPayout,
       addStoredPaymentMethod, removeStoredPaymentMethod,
       setCompanyId,
+      clearPersistError,
     }}>
       {children}
     </StoreContext.Provider>
