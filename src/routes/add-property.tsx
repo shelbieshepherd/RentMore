@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "~/lib/layout";
 import {
   type Property,
@@ -166,6 +166,18 @@ function AddPropertyPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  // When owners arrive AFTER the form mounts (store sync is async), default the
+  // existing-owner selection to the first owner. Without this, the dropdown
+  // *shows* an owner while form.ownerId stays "" and the property silently
+  // saves with no owner attached (owner_id NULL).
+  useEffect(() => {
+    if (!useExistingOwner) return;
+    setForm((prev) => {
+      if (prev.ownerId) return prev;
+      const first = owners[0]?.id;
+      return first ? { ...prev, ownerId: first } : prev;
+    });
+  }, [owners, useExistingOwner]);
   // Bed helpers
   const addBed = () => {
     setForm((prev) => {
