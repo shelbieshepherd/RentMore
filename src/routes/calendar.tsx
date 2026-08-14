@@ -94,6 +94,7 @@ function CalendarPage() {
   const [bookGuestEmail, setBookGuestEmail] = useState("");
   const [bookGuestPhone, setBookGuestPhone] = useState("");
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookError, setBookError] = useState("");
   const [bookNightlyRate, setBookNightlyRate] = useState(0);
   const [bookCleanFee, setBookCleanFee] = useState(feeConfig.cleaningFee);
   const [bookLinenFeeState, setBookLinenFeeState] = useState(feeConfig.linenFee);
@@ -269,13 +270,13 @@ function CalendarPage() {
 
   const openNewBooking = () => {
     setShowNewBooking(true); setBookStep("dates"); setBookCheckIn(""); setBookCheckOut("");
-    setBookPropId(""); setBookGuestName(""); setBookGuestEmail(""); setBookGuestPhone(""); setBookingSuccess(false);
+    setBookPropId(""); setBookGuestName(""); setBookGuestEmail(""); setBookGuestPhone(""); setBookingSuccess(false); setBookError("");
     setBookNightlyRate(0); setBookCleanFee(feeConfig.cleaningFee); setBookLinenFeeState(feeConfig.linenFee); setBookCommRate(feeConfig.commissionRate * 100);
   };
 
   const openBookNow = (propId: string, start: string, end: string) => {
     setShowNewBooking(true); setBookCheckIn(start); setBookCheckOut(end); setBookPropId(propId);
-    setBookStep("guest"); setBookGuestName(""); setBookGuestEmail(""); setBookGuestPhone(""); setBookingSuccess(false);
+    setBookStep("guest"); setBookGuestName(""); setBookGuestEmail(""); setBookGuestPhone(""); setBookingSuccess(false); setBookError("");
     setBookNightlyRate(0); setBookCleanFee(feeConfig.cleaningFee); setBookLinenFeeState(feeConfig.linenFee); setBookCommRate(feeConfig.commissionRate * 100);
   };
 
@@ -338,7 +339,33 @@ function CalendarPage() {
   // Full booking modal
   const handleBookSearch = (e: React.FormEvent) => { e.preventDefault(); if (!bookCheckIn || !bookCheckOut) return; setBookStep("results"); };
   const handleSelectProp = (propId: string) => { setBookPropId(propId); setBookStep("guest"); };
-  const handleBookSubmit = (e: React.FormEvent) => { e.preventDefault(); setBookingSuccess(true); setTimeout(() => { setShowNewBooking(false); setBookingSuccess(false); }, 1500); };
+  const handleBookSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Guards — never fake success: property must be chosen and guest fields filled.
+    if (!bookPropId) { setBookError("Please choose a property first."); return; }
+    if (!bookGuestName.trim() || !bookGuestEmail.trim()) { setBookError("Guest name and email are required."); return; }
+    addBooking({
+      propertyId: bookPropId,
+      guestName: bookGuestName.trim(),
+      guestEmail: bookGuestEmail.trim(),
+      guestPhone: bookGuestPhone.trim() || undefined,
+      startDate: bookCheckIn,
+      endDate: bookCheckOut,
+      nightlyRate: bookNightlyRate || bookRate,
+      status: "confirmed",
+      totalAmount: bookTotal,
+      source: "direct",
+      commissionRate: bookCommRate / 100,
+      createdAt: new Date().toISOString(),
+      createdBy: "Admin",
+      cleaningFee: bookCleanFee,
+      linenFee: bookLinenFeeState,
+      taxAmount: bookTaxAmount,
+    });
+    setBookError("");
+    setBookingSuccess(true);
+    setTimeout(() => { setShowNewBooking(false); setBookingSuccess(false); }, 1500);
+  };
   const availableForBook = properties.filter(p => p.type === "short-term" && isPropAvailable(p.id, bookCheckIn, bookCheckOut));
   const bookProp = properties.find(p => p.id === bookPropId);
   const bookNights = bookCheckIn && bookCheckOut ? Math.max(0, Math.ceil((new Date(bookCheckOut).getTime() - new Date(bookCheckIn).getTime()) / 86400000)) : 0;
@@ -882,6 +909,7 @@ function CalendarPage() {
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Guest Name</label><input className="input-field" value={bookGuestName} onChange={e => setBookGuestName(e.target.value)} placeholder="Enter guest name" required /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Guest Email</label><input className="input-field" type="email" value={bookGuestEmail} onChange={e => setBookGuestEmail(e.target.value)} placeholder="guest@email.com" required /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone</label><input className="input-field" type="tel" value={bookGuestPhone} onChange={e => setBookGuestPhone(e.target.value)} placeholder="(555) 000-0000" /></div>
+                  {bookError && <p className="text-sm text-red-600 font-medium">{bookError}</p>}
                   <div className="flex justify-end gap-3 pt-2"><button type="button" className="btn-secondary" onClick={() => setBookStep("results")}>← Back</button><button type="submit" className="btn-accent">Confirm Booking</button></div>
                 </form>
               ) : null}
