@@ -648,8 +648,8 @@ function BookingDetailContent({ booking }: { booking: any }) {
 
             {/* Payment Actions */}
             <div className="flex gap-2 flex-wrap">
-              <button onClick={() => { setCardAmount(balanceDue); setPaySuccess(false); setChargeCardSelectedPmId(""); setShowChargeCard(true); }} className="btn-accent text-xs flex-1 py-2 min-w-[80px]">💳 Charge Card</button>
-              <button onClick={() => { setAchAmount(balanceDue); setPaySuccess(false); setAchSelectedPmId(""); setShowACH(true); }} className="btn-secondary text-xs flex-1 py-2 min-w-[80px]">🏦 Charge ACH</button>
+              <button onClick={() => { setCardAmount(balanceDue); setPaySuccess(false); setChargeCardSelectedPmId(""); setShowChargeCard(true); }} className="btn-accent text-xs flex-1 py-2 min-w-[80px]">💳 Record Card Payment</button>
+              <button onClick={() => { setAchAmount(balanceDue); setPaySuccess(false); setAchSelectedPmId(""); setShowACH(true); }} className="btn-secondary text-xs flex-1 py-2 min-w-[80px]">🏦 Record ACH Payment</button>
               <button onClick={() => { setCheckAmount(balanceDue); setPaySuccess(false); setShowCheckPayment(true); }} className="btn-secondary text-xs flex-1 py-2 min-w-[80px]">📝 Record Check</button>
               <button onClick={() => { setUtilityAmount(0); setUtilityPaymentMethod("credit_card"); setUtilityDescription("Utility charge"); setUtilitySelectedPmId(""); setPaySuccess(false); setShowUtilCharge(true); }} className="btn-secondary text-xs flex-1 py-2 min-w-[80px]">📋 Record Utility</button>
               <button onClick={() => { setRefundAmount(0); setRefundMethod("credit_card"); setRefundDescription("Refund to guest"); setRefundSelectedPmId(""); setPaySuccess(false); setShowRefund(true); }} className="border border-red-300 text-red-700 hover:bg-red-50 rounded-lg text-xs flex-1 py-2 font-medium min-w-[80px]">↩ Refund</button>
@@ -918,8 +918,9 @@ function BookingDetailContent({ booking }: { booking: any }) {
                 {pmType === "credit_card" ? (
                   <>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Last 4 Digits</label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Card Number (last 4)</label>
                       <input className="input-field" maxLength={4} value={pmCardLast4} onChange={e => setPmCardLast4(e.target.value.replace(/\D/g,""))} placeholder="4242" required />
+                      <p className="text-[10px] text-gray-400 mt-1">Only the last 4 are stored for reference — full card details are entered on Stripe's secure checkout page.</p>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Card Brand</label>
@@ -955,7 +956,7 @@ function BookingDetailContent({ booking }: { booking: any }) {
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Account Number</label>
                       <input className="input-field" value={pmAcctLast4} onChange={e => setPmAcctLast4(e.target.value.replace(/\D/g,""))} placeholder="Full account number" required />
-                      <p className="text-[10px] text-gray-400 mt-1">Only last 4 stored for display — full number used for processing</p>
+                      <p className="text-[10px] text-gray-400 mt-1">Only the last 4 are stored for reference — full account details are entered on Stripe's secure checkout page.</p>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Routing Number</label>
@@ -969,13 +970,13 @@ function BookingDetailContent({ booking }: { booking: any }) {
           </div>
         </div>
       )}
-      {/* Charge Card Modal */}
+      {/* Record Card Payment Modal */}
       {showChargeCard && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/30" onClick={() => setShowChargeCard(false)} />
           <div className="relative z-10 bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-sm mx-4">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Charge Card</h2>
+              <h2 className="text-lg font-semibold">Record Card Payment</h2>
               <button onClick={() => setShowChargeCard(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
             </div>
             {paySuccess ? (
@@ -999,20 +1000,21 @@ function BookingDetailContent({ booking }: { booking: any }) {
                     </select>
                   )}
                 </div>
-                <button type="submit" className="btn-accent w-full">Charge {formatCurrency(cardAmount || balanceDue)}</button>
+                <p className="text-[10px] text-gray-400">This records a card payment you took outside RentMore. To charge a card online, use the Payments tab — Open Secure Checkout (Stripe handles the full card entry).</p>
+                <button type="submit" className="btn-accent w-full">Record {formatCurrency(cardAmount || balanceDue)}</button>
               </form>
             )}
           </div>
         </div>
       )}
 
-      {/* Charge ACH Modal */}
+      {/* Record ACH Payment Modal */}
       {showACH && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/30" onClick={() => setShowACH(false)} />
           <div className="relative z-10 bg-white rounded-2xl shadow-xl border border-gray-100 w-full max-w-sm mx-4">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Charge ACH</h2>
+              <h2 className="text-lg font-semibold">Record ACH Payment</h2>
               <button onClick={() => setShowACH(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
             </div>
             {paySuccess ? (
@@ -1036,7 +1038,8 @@ function BookingDetailContent({ booking }: { booking: any }) {
                     </select>
                   )}
                 </div>
-                <button type="submit" className="btn-accent w-full">Charge {formatCurrency(achAmount || balanceDue)} via ACH</button>
+                <p className="text-[10px] text-gray-400">This records an ACH payment you took outside RentMore. To run an ACH payment online, use the Payments tab — Open Secure Checkout (Stripe handles the full bank entry).</p>
+                <button type="submit" className="btn-accent w-full">Record {formatCurrency(achAmount || balanceDue)} via ACH</button>
               </form>
             )}
           </div>
