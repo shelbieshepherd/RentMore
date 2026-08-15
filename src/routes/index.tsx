@@ -11,7 +11,7 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardHome() {
-  const { properties, tenants, payments, maintenanceRequests, bookings, calendarBlocks } = useStore();
+  const { properties, tenants, payments, maintenanceRequests, bookings, calendarBlocks, addBooking } = useStore();
   const totalProperties = properties.length;
   const occupiedProperties = properties.filter(p => p.status === "occupied").length;
   const totalTenants = tenants.filter(t => t.type === "tenant").length;
@@ -57,6 +57,7 @@ function DashboardHome() {
   const [bookCommission, setBookCommission] = useState(feeConfig.commissionRate * 100);
   const [bookNightlyRate, setBookNightlyRate] = useState(0);
   const [bookSuccess, setBookSuccess] = useState(false);
+  const [bookError, setBookError] = useState("");
 
   const openBookNow = (propId: string) => {
     setBookNowProp(propId);
@@ -69,10 +70,41 @@ function DashboardHome() {
     const pp = properties.find(p => p.id === propId);
     setBookNightlyRate(pp?.nightlyRate || (pp?.monthlyRent ? Math.round(pp.monthlyRent / 30) : 0));
     setBookSuccess(false);
+    setBookError("");
   };
 
   const submitBookNow = (e: React.FormEvent) => {
     e.preventDefault();
+    // Guards — never fake success: property must be chosen and guest fields filled.
+    if (!bookNowProp) { setBookError("Please choose a property first."); return; }
+    if (!bookGuestName.trim() || !bookGuestEmail.trim()) { setBookError("Guest name and email are required."); return; }
+    const pp = properties.find(p => p.id === bookNowProp);
+    const defaultRate = pp?.nightlyRate || (pp?.monthlyRent ? Math.round(pp.monthlyRent / 30) : 0);
+    const rate = bookNightlyRate || defaultRate;
+    const n = Math.max(1, Math.ceil((new Date(availEnd).getTime() - new Date(availStart).getTime()) / 86400000));
+    const subtotal = n * rate;
+    const localTax = n >= 185 ? 0 : Math.round(subtotal * feeConfig.taxRate * 100) / 100;
+    const total = subtotal + bookCleaningFee + bookLinenFee + localTax;
+    addBooking({
+      propertyId: bookNowProp,
+      guestName: bookGuestName.trim(),
+      guestEmail: bookGuestEmail.trim(),
+      guestPhone: bookGuestPhone.trim() || undefined,
+      guestAddress: bookGuestAddress.trim() || undefined,
+      startDate: availStart,
+      endDate: availEnd,
+      nightlyRate: rate,
+      status: "confirmed",
+      totalAmount: total,
+      source: "direct",
+      commissionRate: bookCommission / 100,
+      createdAt: new Date().toISOString(),
+      createdBy: "Admin",
+      cleaningFee: bookCleaningFee,
+      linenFee: bookLinenFee,
+      taxAmount: localTax,
+    });
+    setBookError("");
     setBookSuccess(true);
     setTimeout(() => { setBookNowProp(""); setBookSuccess(false); }, 1500);
   };
@@ -470,6 +502,7 @@ function DashboardHome() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                   <input className="input-field" type="tel" value={bookGuestPhone} onChange={e => setBookGuestPhone(e.target.value)} placeholder="(555) 000-0000" />
                 </div>
+                {bookError && <p className="text-sm text-red-600 font-medium">{bookError}</p>}
                 <button type="submit" className="btn-accent w-full">Confirm Booking</button>
               </form>
             )}
