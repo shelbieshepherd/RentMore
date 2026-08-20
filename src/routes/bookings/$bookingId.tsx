@@ -5,6 +5,8 @@ import { formatCurrency, formatDate, calculateFees, feeConfig, type Payment } fr
 import { fillTemplate } from "~/lib/template-utils";
 import { queueEmail, leaseEmailTemplate, guestEmailTemplate } from "~/lib/email";
 import { useStore } from "~/lib/store";
+import { createOnDemandCharge } from "~/lib/db-queries";
+import { convenienceFeeCents, guestTotalCents, pmNetCents } from "~/lib/fees";
 
 export const Route = createFileRoute("/bookings/$bookingId")({
   component: BookingDetailPage,
@@ -81,6 +83,14 @@ function BookingDetailContent({ booking }: { booking: any }) {
   const [cardAmount, setCardAmount] = useState(0);
   const [cardNumber, setCardNumber] = useState("");
   const [chargeCardSelectedPmId, setChargeCardSelectedPmId] = useState<string>("");
+
+  // On-demand charge (owner Aug 14): charge a guest's saved card/ACH anytime.
+  const [odMethodId, setOdMethodId] = useState<string>("");
+  const [odAmount, setOdAmount] = useState<number>(0);
+  const [odReason, setOdReason] = useState<string>("");
+  const [odBusy, setOdBusy] = useState(false);
+  const [odResult, setOdResult] = useState<string>("");
+  const [odError, setOdError] = useState<string>("");
   const [achAmount, setAchAmount] = useState(0);
   const [achSelectedPmId, setAchSelectedPmId] = useState<string>("");
   const [checkAmount, setCheckAmount] = useState(0);
@@ -167,6 +177,40 @@ function BookingDetailContent({ booking }: { booking: any }) {
 
   const fees = useMemo(() => calculateFees(nights, booking.nightlyRate, { cleaningFee: booking.cleaningFee, linenFee: booking.linenFee, taxAmount: booking.taxAmount }), [nights, booking.nightlyRate, booking.cleaningFee, booking.linenFee, booking.taxAmount]);
   const paymentMethodsForBooking = useMemo(() => store.paymentMethods.filter((pm: any) => pm.bookingId === booking.id), [store.paymentMethods, booking.id]);
+
+  // On-demand charge derived values (owner Aug 14): guest pays amount + fee.
+  const odMethods = paymentMethodsForBooking;
+  const odMethod = odMethods.find((pm: any) => pm.id === odMethodId) as any;
+  const odIsAch = odMethod?.type === "ACH";
+  const odAmountCents = Math.round(odAmount * 100);
+  const odGuestTotal = odAmountCents > 0 ? guestTotalCents(odAmountCents, odIsAch ? "ACH" : "credit card") : 0;
+  const odPmNet = odAmountCents > 0 ? pmNetCents(odAmountCents, odIsAch ? "ACH" : "credit card") : 0;
+  const odConv = odAmountCents > 0 ? convenienceFeeCents(odAmountCents, odIsAch ? "ACH" : "credit card") : 0;
+  async function handleOnDemandCharge() {
+    setOdError(""); setOdResult("");
+    if (!odMethodId) return setOdError("Select a saved payment method on file.");
+    if (odAmountCents <= 0) return setOdError("Enter a charge amount greater than zero.");
+    if (!odReason.trim()) return setOdError("Enter a reason (e.g. damages, utility pass-through).");
+    setOdBusy(true);
+    try {
+      const res = await createOnDemandCharge({
+        data: {
+          companyId: store.companyId,
+          bookingId: booking.id,
+          methodId: odMethodId,
+          propertyId: booking.propertyId,
+          amountCents: odAmountCents,
+          reason: odReason.trim(),
+        },
+      });
+      setOdResult(`Charged ${formatCurrency(odAmount)} to ${odMethod?.label || "saved method"}. Guest pays ${formatCurrency((res.guestTotalCents||0)/100)} (incl. ${formatCurrency((res.guestTotalCents||0 - odAmountCents)/100)} convenience fee); your credit ${formatCurrency((res.pmNetCents||0)/100)}.`);
+      setOdAmount(0); setOdReason("");
+    } catch (e: any) {
+      setOdError(e?.message || "Charge failed.");
+    } finally {
+      setOdBusy(false);
+    }
+  }
 
   const secDepPaid = secDepPayments.filter((p: any) => p.amount > 0).reduce((s: number, p: any) => s + p.amount, 0);
   const secDepRefunded = secDepPayments.filter((p: any) => p.amount < 0).reduce((s: number, p: any) => s + Math.abs(p.amount), 0);
@@ -655,6 +699,50 @@ function BookingDetailContent({ booking }: { booking: any }) {
               <button onClick={() => { setRefundAmount(0); setRefundMethod("credit_card"); setRefundDescription("Refund to guest"); setRefundSelectedPmId(""); setPaySuccess(false); setShowRefund(true); }} className="border border-red-300 text-red-700 hover:bg-red-50 rounded-lg text-xs flex-1 py-2 font-medium min-w-[80px]">↩ Refund</button>
             </div>
 
+            {/* On-demand charge (owner Aug 14): charge a saved card/ACH anytime */}
+            <div className="card p-4">
+              <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-1">💳 Charge Saved Card / ACH (on-demand)</h3>
+              <p className="text-[11px] text-gray-400 mb-3">Use for damages, utility pass-through, or an unpaid balance. The guest pays the convenience fee (3.5% card / 1% + $0.25 ACH) on top; you receive the charge plus the fee leftover. RentMore takes $0.</p>
+              {odMethods.length === 0 ? (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-3">
+                  No saved payment method for this reservation yet. Add a card/ACH under{" "}
+                  <span className="font-medium">Payment Methods on File</span> (the guest enters it once on Stripe's secure page so it can be charged later).
+                </p>
+              ) : (
+                <div className="mb-3">
+                  <label className="text-[11px] text-gray-500 font-medium">Saved method</label>
+                  <select value={odMethodId} onChange={(e) => setOdMethodId(e.target.value)} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm mt-1">
+                    <option value="">Select a saved method…</option>
+                    {odMethods.map((pm: any) => (
+                      <option key={pm.id} value={pm.id}>{pm.label || `${pm.type === "ACH" ? "ACH" : "Card"} on file`}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-[11px] text-gray-500 font-medium">Amount (USD)</label>
+                  <input type="number" min="0" step="0.01" value={odAmount || ""} onChange={(e) => setOdAmount(parseFloat(e.target.value) || 0)} placeholder="0.00" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm mt-1" />
+                </div>
+                <div>
+                  <label className="text-[11px] text-gray-500 font-medium">Reason</label>
+                  <input type="text" value={odReason} onChange={(e) => setOdReason(e.target.value)} placeholder="Damages, utility pass-through…" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm mt-1" />
+                </div>
+              </div>
+              {odAmountCents > 0 && odMethod && (
+                <div className="text-[11px] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg p-2 mb-3 space-y-0.5">
+                  <div className="flex justify-between"><span>Charge amount</span><span>{formatCurrency(odAmount)}</span></div>
+                  <div className="flex justify-between"><span>Guest convenience fee ({odIsAch ? "ACH 1% + $0.25" : "card 3.5%"})</span><span>{formatCurrency(odConv/100)}</span></div>
+                  <div className="flex justify-between font-medium text-gray-900"><span>Guest pays</span><span>{formatCurrency(odGuestTotal/100)}</span></div>
+                  <div className="flex justify-between text-teal-700"><span>You receive (charge + leftover)</span><span>{formatCurrency(odPmNet/100)}</span></div>
+                </div>
+              )}
+              <button onClick={handleOnDemandCharge} disabled={odBusy || odMethods.length === 0} className="btn-accent text-xs py-2 disabled:opacity-50">
+                {odBusy ? "Charging…" : "Charge saved method"}
+              </button>
+              {odError && <p className="text-[11px] text-red-600 mt-2">{odError}</p>}
+              {odResult && <p className="text-[11px] text-teal-700 mt-2">{odResult}</p>}
+            </div>
             {/* Payments Table */}
             <div className="card p-4">
               <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-3">Payments</h3>

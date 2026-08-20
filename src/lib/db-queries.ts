@@ -3,7 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
 import { randomBytes } from "node:crypto";
-import { guestTotalCents, pmNetCents } from "./fees";
+import { guestTotalCents, pmNetCents, stripeFeeCents } from "./fees";
 import {
   calculateOwnerPayouts,
   type PayoutOwner,
@@ -1094,6 +1094,192 @@ export const deletePaymentMethod = createServerFn()
     await sql()`
       DELETE FROM payment_methods WHERE id = ${data.methodId}::uuid
     `;
+  });
+
+// ── On-demand payments (saved payment method + charge-from-reservation) ──
+// Owner decision (Aug 14): the PM can charge a guest's saved card/ACH anytime
+// from inside a reservation (damages, utility pass-through, balance). The
+// guest pays the convenience fee on EVERY processed charge (3.5% card /
+// 1% + $0.25 ACH); RentMore takes $0; the PM nets the charge + the residual.
+// This reuses the identical fee model (guestTotalCents/pmNetCents in fees.ts).
+// Real off-session charging is gated behind an onboarding-complete Connect
+// account; the demo company stays on the mock path.
+
+/**
+ * Collect a guest payment method ONCE (legally required — the cardholder must
+ * enter their own card + consent to keep it on file). Uses Stripe-hosted
+ * Checkout in `setup` mode so no client-side Stripe Elements are needed — the
+ * guest enters the card on Stripe's page; the resulting PaymentMethod id is
+ * persisted into payment_methods (via the setup_intent.succeeded webhook /
+ * saveTokenizedPaymentMethod). Returns a redirect URL (or a mock for demo).
+ */
+export const createSetupCheckout = createServerFn()
+  .validator((data: {
+    companyId: string;
+    bookingId?: string;
+    propertyId?: string;
+    guestEmail?: string;
+    method: "card" | "ach";
+  }) => data)
+  .handler(async ({ data }) => {
+    if (data.companyId === DEFAULT_COMPANY_ID) {
+      return { url: null, setupIntentId: `seti_demo_${Date.now()}`, mock: true };
+    }
+    const companyRows = await sql()`
+      SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
+      FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
+    const company = companyRows[0];
+    if (!company || !company.stripe_connect_account_id || !company.stripe_connect_onboarding_complete) {
+      throw new Error("Online payments are not enabled for this company — complete Stripe onboarding first.");
+    }
+    const { stripe } = await import("~/lib/stripe");
+    const meta: Record<string, string> = {
+      company_id: data.companyId,
+      method: data.method === "ach" ? "ach" : "card",
+      mode: "ondemand-save",
+    };
+    if (data.bookingId) meta.booking_id = data.bookingId;
+    if (data.propertyId) meta.property_id = data.propertyId;
+    const returnBase = data.bookingId
+      ? `${SITE_BASE}/bookings/${encodeURIComponent(data.bookingId)}`
+      : `${SITE_BASE}/bookings`;
+    const session = await stripe().checkout.sessions.create({
+      mode: "setup",
+      on_behalf_of: company.stripe_connect_account_id,
+      customer_email: data.guestEmail || undefined,
+      payment_method_types: data.method === "ach" ? ["us_bank_account"] : ["card"],
+      metadata: meta,
+      payment_method_data: { allow_redisplay: "always" },
+      success_url: `${returnBase}?ondemand=method-saved`,
+      cancel_url: `${returnBase}?ondemand=cancelled`,
+    });
+    return { url: session.url, setupIntentId: session.id, mock: false };
+  });
+
+/**
+ * Store a tokenized Stripe PaymentMethod on the reservation after the guest
+ * completes the "keep on file" setup flow. Idempotent on stripe_pm_id.
+ */
+export const saveTokenizedPaymentMethod = createServerFn()
+  .validator((data: {
+    companyId: string;
+    propertyId?: string;
+    methodType: "credit_card" | "ACH";
+    label?: string;
+    cardLast4?: string;
+    cardExpiry?: string;
+    cardBrand?: string;
+    bankName?: string;
+    accountLast4?: string;
+    stripePmId: string;
+  }) => data)
+  .handler(async ({ data }) => {
+    const rows = await sql()`
+      INSERT INTO payment_methods (company_id, property_id, method_type, label,
+        card_last4, card_expiry, card_brand, bank_name, account_last4, stripe_pm_id)
+      VALUES (${data.companyId}::uuid, ${data.propertyId || null}::uuid, ${data.methodType},
+        ${data.label || null}, ${data.cardLast4 || null}, ${data.cardExpiry || null},
+        ${data.cardBrand || null}, ${data.bankName || null}, ${data.accountLast4 || null},
+        ${data.stripePmId})
+      ON CONFLICT (stripe_pm_id) DO UPDATE SET
+        label = EXCLUDED.label, card_last4 = EXCLUDED.card_last4,
+        card_brand = EXCLUDED.card_brand
+      RETURNING id
+    `;
+    return rows[0];
+  });
+
+/**
+ * Charge a saved payment method off-session from inside a reservation.
+ * The guest pays amount + convenience fee; RentMore $0; PM nets amount + residual.
+ */
+export const createOnDemandCharge = createServerFn()
+  .validator((data: {
+    companyId: string;
+    bookingId: string;
+    methodId: string;
+    propertyId?: string;
+    amountCents: number;
+    reason: string;
+  }) => data)
+  .handler(async ({ data }) => {
+    if (data.amountCents <= 0) throw new Error("Charge amount must be greater than zero.");
+    const pms = await sql()`
+      SELECT id, method_type, label, card_last4, stripe_pm_id, bank_name, account_last4
+      FROM payment_methods WHERE id = ${data.methodId}::uuid`;
+    const pm = pms[0];
+    if (!pm) throw new Error("Saved payment method not found.");
+    const isAch = pm.method_type === "ACH";
+    const method = isAch ? "ACH" : "credit card";
+    const guestTotal = guestTotalCents(data.amountCents, method);
+    const pmNet = pmNetCents(data.amountCents, method);
+    const stripePmId = pm.stripe_pm_id;
+    const description = `On-demand ${isAch ? "ACH" : "card"} charge — ${data.reason}`;
+    const processingFee = stripeFeeCents(guestTotal, method);
+    // Demo company (or a saved method with no Stripe token yet): mock the
+    // charge but still record the ledger row so the reservation page
+    // demonstrably persists an on-demand payment.
+    if (data.companyId === DEFAULT_COMPANY_ID || !stripePmId) {
+      const demoPiId = `pi_ondemand_demo_${Date.now()}`;
+      await sql()`
+        INSERT INTO payments (company_id, booking_id, property_id, payment_type, method,
+          amount_cents, description, status, stripe_payment_intent_id, processing_fee_cents)
+        VALUES (${data.companyId}::uuid, ${data.bookingId}::uuid,
+          ${data.propertyId || null}::uuid, 'charge', ${isAch ? "ach" : "credit_card"},
+          ${pmNet}, ${description}, 'completed', ${demoPiId}, ${processingFee})
+        ON CONFLICT (stripe_payment_intent_id) DO NOTHING`;
+      return { mock: true, paymentIntentId: demoPiId, amountCents: data.amountCents, guestTotalCents: guestTotal, pmNetCents: pmNet, reason: data.reason };
+    }
+    const companyRows = await sql()`
+      SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
+      FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
+    const company = companyRows[0];
+    if (!company || !company.stripe_connect_account_id || !company.stripe_connect_onboarding_complete) {
+      throw new Error("Online payments are not enabled for this company — complete Stripe onboarding first.");
+    }
+    const { stripe } = await import("~/lib/stripe");
+    const meta: Record<string, string> = {
+      company_id: data.companyId,
+      payment_type: "charge",
+      method: isAch ? "ach" : "card",
+      booking_amount_cents: String(data.amountCents),
+      pm_net_cents: String(pmNet),
+      booking_id: data.bookingId,
+    };
+    if (data.propertyId) meta.property_id = data.propertyId;
+    // Off-session charge against the saved PaymentMethod on the connected
+    // account (customer = merchant of record). on_behalf_of + separate
+    // charge ownership — RentMore is never the merchant of record.
+    const pi = await stripe().paymentIntents.create({
+      amount: guestTotal,
+      currency: "usd",
+      payment_method: stripePmId,
+      payment_method_types: isAch ? ["us_bank_account"] : ["card"],
+      confirm: true,
+      off_session: true,
+      on_behalf_of: company.stripe_connect_account_id,
+      description,
+      metadata: meta,
+    });
+    // Record the ledger row immediately (webhook reconciles idempotently via
+    // stripe_payment_intent_id UNIQUE). amount_cents = what the PM receives.
+    await sql()`
+      INSERT INTO payments (company_id, booking_id, property_id, payment_type, method,
+        amount_cents, description, status, stripe_payment_intent_id, processing_fee_cents)
+      VALUES (${data.companyId}::uuid, ${data.bookingId}::uuid,
+        ${data.propertyId || null}::uuid, 'charge', ${isAch ? "ach" : "credit_card"},
+        ${pmNet}, ${description}, ${pi.status === "succeeded" ? "completed" : "failed"},
+        ${pi.id}, ${processingFee})
+      ON CONFLICT (stripe_payment_intent_id) DO NOTHING`;
+    return {
+      mock: false,
+      paymentIntentId: pi.id,
+      status: pi.status,
+      amountCents: data.amountCents,
+      guestTotalCents: guestTotal,
+      pmNetCents: pmNet,
+      reason: data.reason,
+    };
   });
 
 // ── Leads ──
