@@ -3,7 +3,7 @@
 // walkthrough (What this is / How it works / Launch → Stripe).
 //
 // Fee model (owner Aug 13, FINAL): guests pay a 3.5% card convenience fee
-// (1% + $0.25 ACH); you receive 100% of the booking plus the leftover after
+// (free ACH); you receive 100% of the booking plus the leftover after
 // Stripe's processing cost. RentMore takes no transaction fee.
 //
 // Real companies only — callers render this when the company is NOT demo and
@@ -86,7 +86,7 @@ export function OnboardingWizard({
           </p>
           <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
             <div className="flex justify-between"><span>Card</span><span className="font-semibold">3.5% convenience fee (guest pays)</span></div>
-            <div className="flex justify-between mt-1"><span>ACH</span><span className="font-semibold">1% + $0.25 (guest pays)</span></div>
+            <div className="flex justify-between mt-1"><span>ACH</span><span className="font-semibold">Free — you absorb Stripe's cost</span></div>
             <div className="flex justify-between mt-1 border-t border-gray-200 pt-1"><span>You keep</span><span className="font-semibold text-emerald-600">100% of every payment — the guest-paid fee covers Stripe's cost, the rest is yours</span></div>
           </div>
         </div>

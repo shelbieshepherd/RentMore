@@ -694,7 +694,7 @@ function PaymentsPage() {
                       >
                         <div className="text-xl mb-1">🏦</div>
                         <p className="text-sm font-medium">ACH Transfer</p>
-                        <p className="text-xs text-gray-400 mt-0.5">1% + $0.25 convenience fee</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Free — you pay a small ACH processing cost</p>
                       </button>
                       {!onlineReady && (
                         <button

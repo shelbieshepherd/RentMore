@@ -702,7 +702,7 @@ function BookingDetailContent({ booking }: { booking: any }) {
             {/* On-demand charge (owner Aug 14): charge a saved card/ACH anytime */}
             <div className="card p-4">
               <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-1">💳 Charge Saved Card / ACH (on-demand)</h3>
-              <p className="text-[11px] text-gray-400 mb-3">Use for damages, utility pass-through, or an unpaid balance. The guest pays the convenience fee (3.5% card / 1% + $0.25 ACH) on top; you receive the charge plus the fee leftover. RentMore takes $0.</p>
+              <p className="text-[11px] text-gray-400 mb-3">Use for damages, utility pass-through, or an unpaid balance. Card: the guest pays a 3.5% convenience fee on top and you receive the charge plus the leftover. ACH: free for the guest — you absorb Stripe's small ACH cost. RentMore takes $0.</p>
               {odMethods.length === 0 ? (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-3">
                   No saved payment method for this reservation yet. Add a card/ACH under{" "}
@@ -732,7 +732,7 @@ function BookingDetailContent({ booking }: { booking: any }) {
               {odAmountCents > 0 && odMethod && (
                 <div className="text-[11px] text-gray-600 bg-gray-50 border border-gray-100 rounded-lg p-2 mb-3 space-y-0.5">
                   <div className="flex justify-between"><span>Charge amount</span><span>{formatCurrency(odAmount)}</span></div>
-                  <div className="flex justify-between"><span>Guest convenience fee ({odIsAch ? "ACH 1% + $0.25" : "card 3.5%"})</span><span>{formatCurrency(odConv/100)}</span></div>
+                  <div className="flex justify-between"><span>{odIsAch ? "You absorb (Stripe ACH cost)" : "Guest convenience fee (card 3.5%)"}</span><span>{formatCurrency(odConv/100)}</span></div>
                   <div className="flex justify-between font-medium text-gray-900"><span>Guest pays</span><span>{formatCurrency(odGuestTotal/100)}</span></div>
                   <div className="flex justify-between text-teal-700"><span>You receive (charge + leftover)</span><span>{formatCurrency(odPmNet/100)}</span></div>
                 </div>

@@ -483,7 +483,7 @@ function PaymentCard({
                 >
                   <div className="text-xl mb-1">🏦</div>
                   <p className="text-sm font-medium">ACH Transfer</p>
-                  <p className="text-xs text-gray-400 mt-0.5">1% + $0.25 ACH convenience fee</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Free ACH — no convenience fee</p>
                 </button>
               </div>
 

@@ -162,13 +162,13 @@ function SettingsPaymentsPage() {
                 </div>
                 <div className="rounded-xl border border-gray-100 p-4">
                   <p className="text-sm text-gray-500">ACH bank transfer</p>
-                  <p className="text-xl font-bold text-gray-900 mt-1">1% + $0.25</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">$0.00</p>
                   <p className="text-xs text-gray-400 mt-1">convenience fee, guest pays</p>
                 </div>
               </div>
               <p className="mt-4 text-xs text-gray-400">
                 Payments are processed through your own Stripe account — you stay the merchant of record and
-                receive 100% of every booking. Guests pay a convenience fee (3.5% card / 1% + $0.25 ACH) —
+                receive 100% of every booking. Guests pay a 3.5% card convenience fee; ACH is free for guests (you absorb Stripe's ACH cost) —
                 after Stripe's processing cost, it all goes to you. RentMore takes no transaction fee.
                 Chargebacks, refunds, and disputes
                 are resolved against your Stripe account's balance — RentMore is never the merchant of record and

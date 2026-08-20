@@ -81,7 +81,7 @@ function PitchPage() {
               {
                 icon: "💳",
                 title: "Guest-Paid Convenience Fees",
-                desc: "Guests pay a 3.5% card convenience fee (1% + $0.25 on ACH) — you keep 100% of every booking plus the leftover after Stripe's cost. Fee breakdowns per transaction.",
+                desc: "Guests pay a 3.5% card convenience fee — ACH is free (you absorb the small Stripe cost). You keep 100% of every booking plus the leftover after Stripe's cost. Fee breakdowns per transaction.",
               },
             ].map((item) => (
               <div key={item.title} className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
@@ -175,7 +175,7 @@ function PitchPage() {
             ))}
           </div>
           <p className="text-center text-sm text-gray-400 mt-8">
-            Guests pay a 3.5% card convenience fee &nbsp;|&nbsp; 1% + $0.25 on ACH — you keep it all (RentMore takes zero transaction fees)
+            Guests pay a 3.5% card convenience fee &nbsp;|&nbsp; ACH is free for guests — you keep it all (RentMore takes zero transaction fees)
           </p>
         </div>
       </section>

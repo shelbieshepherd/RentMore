@@ -794,7 +794,7 @@ export const createCheckoutSession = createServerFn()
     const isAch = data.method === "ach";
     const method = isAch ? "ACH" : "credit card";
     // Guest-paid convenience fee model (owner decision Aug 13, FINAL): the
-    // guest is charged booking + convenience fee (3.5% card / 1% + $0.25 ACH);
+    // guest is charged booking + convenience fee (3.5% card); ACH is free for the guest —
     // after Stripe's cost the ENTIRE leftover goes to the PM. RentMore takes
     // ZERO transaction fee — no application_fee_amount is ever set.
     const guestTotal = guestTotalCents(data.amountCents, method);
@@ -836,7 +836,7 @@ export const createCheckoutSession = createServerFn()
       mode: "payment",
       line_items: [
         {
-          // Guest pays booking + convenience fee (3.5% card / 1% + $0.25 ACH).
+          // Guest pays booking + convenience fee (3.5% card). ACH: free for the guest (PM absorbs).
           price_data: { currency: "usd", product_data: { name: productName }, unit_amount: guestTotal },
           quantity: 1,
         },
@@ -1099,8 +1099,8 @@ export const deletePaymentMethod = createServerFn()
 // ── On-demand payments (saved payment method + charge-from-reservation) ──
 // Owner decision (Aug 14): the PM can charge a guest's saved card/ACH anytime
 // from inside a reservation (damages, utility pass-through, balance). The
-// guest pays the convenience fee on EVERY processed charge (3.5% card /
-// 1% + $0.25 ACH); RentMore takes $0; the PM nets the charge + the residual.
+// guest pays the convenience fee on EVERY processed charge (3.5% card / ACH free);
+// RentMore takes $0; card: PM nets charge + leftover; ACH: PM absorbs Stripe cost.
 // This reuses the identical fee model (guestTotalCents/pmNetCents in fees.ts).
 // Real off-session charging is gated behind an onboarding-complete Connect
 // account; the demo company stays on the mock path.

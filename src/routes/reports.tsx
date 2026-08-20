@@ -516,7 +516,7 @@ function ReportsPage() {
         description: p.description,
         amount: p.amount,
         method: p.method,
-        fee: p.method === "credit card" ? p.amount * 0.035 : p.method === "ACH" ? p.amount * 0.01 + 0.25 : 0,
+        fee: p.method === "credit card" ? p.amount * 0.035 : 0, // free ACH — no guest fee
       };
     });
   }, [payments, propById, monthFirst, monthLast]);
@@ -919,7 +919,7 @@ function ReportsPage() {
                   <div className="stat-card border-l-4 border-l-slate-500"><p className="text-sm text-gray-500">Total Fees</p><p className="text-2xl font-bold mt-1 text-slate-600">{formatCurrency(pfCcTotal + pfAchTotal)}</p></div>
                 </div>
                 <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-                  Credit Card: 3.5% convenience fee (guest pays) &nbsp;|&nbsp; ACH: 1% + $0.25 (guest pays) &nbsp;|&nbsp; Check / Utility / Deposit: no convenience fee — every guest-paid fee is yours after Stripe's cost
+                  Credit Card: 3.5% convenience fee (guest pays) &nbsp;|&nbsp; ACH: free — you absorb Stripe's 0.8% ACH cost (capped $5) &nbsp;|&nbsp; Check / Utility / Deposit: no convenience fee — RentMore takes zero transaction fees
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

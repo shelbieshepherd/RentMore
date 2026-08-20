@@ -47,7 +47,7 @@ function AccountingPage() {
   const gross = paidTrans.reduce((s, p) => s + p.amount, 0);
   const ccTotal = paidTrans.filter(p => p.method === "credit card").reduce((s, p) => s + p.amount, 0);
   const achTotal = paidTrans.filter(p => p.method === "ACH").reduce((s, p) => s + p.amount, 0);
-  const fees = paidTrans.reduce((sum, p) => sum + (p.method === "credit card" ? p.amount * 0.035 : p.method === "ACH" ? p.amount * 0.01 + 0.25 : 0), 0);
+  const fees = paidTrans.reduce((sum, p) => sum + (p.method === "credit card" ? p.amount * 0.035 : 0), 0); // free ACH — guest pays no fee
   const net = gross; // PM receives 100% — convenience fees are guest-paid
   const pendingTotal = pendingTrans.reduce((s, p) => s + p.amount, 0);
   const overdueTotal = overdueTrans.reduce((s, p) => s + p.amount, 0);
@@ -109,7 +109,7 @@ function AccountingPage() {
           <div className="stat-card">
             <p className="text-sm text-gray-500">Guest-Paid Convenience Fees (kept by you)</p>
             <p className="text-3xl font-bold mt-1 text-green-600">{formatCurrency(fees)}</p>
-            <p className="text-xs text-gray-400 mt-1">Guests pay: 3.5% card · 1% + $0.25 ACH — yours after Stripe's cost</p>
+            <p className="text-xs text-gray-400 mt-1">Guests pay: 3.5% card convenience fee — ACH is free (you absorb Stripe's ACH cost)</p>
           </div>
           <div className="stat-card">
             <p className="text-sm text-gray-500">Net Revenue (to you)</p>
@@ -137,7 +137,7 @@ function AccountingPage() {
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <p className="text-2xl font-bold">{formatCurrency(achTotal)}</p>
               <p className="text-sm text-gray-500">ACH Transfer</p>
-              <p className="text-xs text-gray-400">1% + $0.25 guest convenience fee</p>
+              <p className="text-xs text-gray-400">Free ACH — you absorb Stripe's 0.8% cost (capped $5)</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <p className="text-2xl font-bold">{formatCurrency(gross - ccTotal - achTotal)}</p>
@@ -169,7 +169,7 @@ function AccountingPage() {
               <tbody className="divide-y divide-gray-100">
                 {filtered.map(p => {
                   const prop = properties.find(pr => pr.id === p.propertyId);
-                  const fee = p.method === "credit card" ? Math.round(p.amount * 0.029 + 30) : p.method === "ACH" ? Math.round(p.amount * 0.01 + 25) : 0;
+                  const fee = p.method === "credit card" ? Math.round(p.amount * 0.029 + 30) : p.method === "ACH" ? Math.min(p.amount * 0.008, 5) : 0; // free ACH: PM absorbs Stripe cost
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="px-6 py-3 text-gray-500">{formatDate(p.date || p.dueDate)}</td>
