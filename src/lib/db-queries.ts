@@ -1145,11 +1145,16 @@ export const createSetupCheckout = createServerFn()
       : `${SITE_BASE}/bookings`;
     const session = await stripe().checkout.sessions.create({
       mode: "setup",
-      on_behalf_of: company.stripe_connect_account_id,
+      // Stripe rejects top-level `on_behalf_of` on mode:"setup" sessions
+      // ("Received unknown parameter: on_behalf_of") — the connected account
+      // (customer = merchant of record) must be declared via
+      // setup_intent_data.on_behalf_of so the saved PaymentMethod/customer are
+      // attributed to the CONNECTED account, not the platform. (2026-08-21)
       customer_email: data.guestEmail || undefined,
       payment_method_types: data.method === "ach" ? ["us_bank_account"] : ["card"],
       metadata: meta,
       payment_method_data: { allow_redisplay: "always" },
+      setup_intent_data: { on_behalf_of: company.stripe_connect_account_id },
       success_url: `${returnBase}?ondemand=method-saved`,
       cancel_url: `${returnBase}?ondemand=cancelled`,
     });
