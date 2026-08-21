@@ -1162,7 +1162,18 @@ export const createSetupCheckout = createServerFn()
       payment_method_types: data.method === "ach" ? ["us_bank_account"] : ["card"],
       metadata: meta,
       payment_method_data: { allow_redisplay: "always" },
-      setup_intent_data: { on_behalf_of: company.stripe_connect_account_id },
+      setup_intent_data: {
+        // Stripe does NOT copy session-level `metadata` onto the SetupIntent in
+        // setup mode — the SetupIntent that shows up in setup_intent.succeeded
+        // only inherits `setup_intent_data.metadata`. Without it here, the
+        // webhook's handleSetupIntent sees empty metadata (no company_id) and
+        // skips persistence entirely (the observed bug: collected guest card
+        // never saved to the reservation even though the owner entered it).
+        // Mirrors the working payment path, which attaches metadata inside
+        // payment_intent_data.metadata. (2026-08-21)
+        on_behalf_of: company.stripe_connect_account_id, // customer = merchant of record
+        metadata: meta,
+      },
       success_url: `${returnBase}?ondemand=method-saved`,
       cancel_url: `${returnBase}?ondemand=cancelled`,
     });
