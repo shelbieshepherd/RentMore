@@ -115,16 +115,51 @@ export async function createCheckoutSession(input: CheckoutSessionInput) {
   });
 }
 
-/** Verify a Stripe webhook signature (STRIPE_WEBHOOK_SECRET).
+/** Verify a Stripe webhook signature.
+ * Attempts every configured signing secret, because this single endpoint
+ * receives BOTH the platform's webhook events AND the "Connected accounts"
+ * webhook events — and Stripe signs each with that endpoint's OWN secret.
+ *
+ * Event sources and their signing secret:
+ *  - Platform webhook endpoint       → STRIPE_WEBHOOK_SECRET (e.g. account.updated
+ *    on the platform, subscription events).
+ *  - "Connected accounts" webhook endpoint → STRIPE_CONNECT_WEBHOOK_SECRET
+ *    (events that occur on a connected account: setup_intent.succeeded,
+ *    payment_intent.succeeded, charge.dispute.*, account.updated for that
+ *    connected account — resources we create via on_behalf_of).
+ * Both endpoints point at https://www.rentmorevrs.com/api/stripe/webhook, so
+ * the handler must accept either signature. Without the connected secret, every
+ * connected-account event is rejected at verification (400) and silently
+ * retried forever — which is exactly the observed "collected card never saves"
+ * bug even after the metadata fix. (2026-08-21)
+ *
  * Async: the SDK's sync constructEvent throws under SubtleCryptoProvider
  * (Bun/edge runtimes; also picks WebCrypto on Node 22), so use the async
  * variant which works in every runtime. */
 export async function verifyWebhookEvent(body: string | Buffer, signature: string) {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) {
+  const secrets = [
+    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+  ].filter(Boolean) as string[];
+  if (secrets.length === 0) {
     throw new Error(
-      "STRIPE_WEBHOOK_SECRET is not set — add it to the Vercel env vars before enabling webhooks.",
+      "No Stripe webhook secret is set — add STRIPE_WEBHOOK_SECRET (and, for connected-account events, STRIPE_CONNECT_WEBHOOK_SECRET) to the Vercel env vars before enabling webhooks.",
     );
   }
-  return stripe().webhooks.constructEventAsync(body, signature, secret);
+  let lastErr: unknown;
+  for (const secret of secrets) {
+    try {
+      return await stripe().webhooks.constructEventAsync(body, signature, secret);
+    } catch (e) {
+      lastErr = e;
+      // try the next configured secret
+    }
+  }
+  // None of the configured secrets verified this payload.
+  throw new Error(
+    `[stripe-webhook] signature verification failed against ${secrets.length} configured secret(s) ` +
+      `(STRIPE_WEBHOOK_SECRET${process.env.STRIPE_CONNECT_WEBHOOK_SECRET ? " + STRIPE_CONNECT_WEBHOOK_SECRET" : ""}). ` +
+      `If this is a connected-account event, set STRIPE_CONNECT_WEBHOOK_SECRET to that endpoint's signing secret. ` +
+      `Underlying: ${(lastErr as Error)?.message}`,
+  );
 }

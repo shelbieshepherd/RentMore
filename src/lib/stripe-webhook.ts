@@ -153,6 +153,7 @@ async function handleDispute(
  */
 async function handleSetupIntent(se: Stripe.SetupIntent): Promise<void> {
   const meta = metaOf(se);
+  console.log(`[stripe-webhook] setup_intent.succeeded id=${se.id} acct=${se.on_behalf_of ?? se.account ?? "?"} meta=${JSON.stringify(meta)}`);
   // Only our PM-side collect flow carries company_id (+ ondemand-save flag).
   if (!meta.company_id || meta.mode !== "ondemand-save") return;
   const pmRef = se.payment_method;
@@ -215,6 +216,7 @@ export async function handleStripeWebhook(
   let event: Stripe.Event;
   try {
     event = await verifyWebhookEvent(rawBody, signature);
+    console.log(`[stripe-webhook] verified ${event.type} id=${(event.data?.object as any)?.id || "-"} acct=${(event.data?.object as any)?.account || "-"}`);
   } catch (err: any) {
     console.error("[stripe-webhook] signature verification failed:", err?.message);
     return json({ error: "invalid signature" }, 400);
