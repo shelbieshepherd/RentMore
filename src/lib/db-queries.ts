@@ -1069,7 +1069,7 @@ export const fetchPaymentMethods = createServerFn()
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      SELECT id, company_id, property_id, method_type, label, card_last4,
+      SELECT id, company_id, property_id, booking_id, method_type, label, card_last4,
              card_expiry, card_brand, bank_name, account_last4, routing_last4,
              is_default, created_at
       FROM payment_methods WHERE company_id = ${data.companyId}::uuid
@@ -1078,11 +1078,11 @@ export const fetchPaymentMethods = createServerFn()
   });
 
 export const insertPaymentMethod = createServerFn()
-  .validator((data: { companyId: string; propertyId?: string; methodType: string; label?: string; cardLast4?: string; cardExpiry?: string; cardBrand?: string; bankName?: string; accountLast4?: string; routingLast4?: string; isDefault?: boolean }) => data)
+  .validator((data: { companyId: string; propertyId?: string; bookingId?: string; methodType: string; label?: string; cardLast4?: string; cardExpiry?: string; cardBrand?: string; bankName?: string; accountLast4?: string; routingLast4?: string; isDefault?: boolean }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      INSERT INTO payment_methods (company_id, property_id, method_type, label, card_last4, card_expiry, card_brand, bank_name, account_last4, routing_last4, is_default)
-      VALUES (${data.companyId}::uuid, ${data.propertyId || null}::uuid, ${data.methodType}, ${data.label || null}, ${data.cardLast4 || null}, ${data.cardExpiry || null}, ${data.cardBrand || null}, ${data.bankName || null}, ${data.accountLast4 || null}, ${data.routingLast4 || null}, ${data.isDefault ?? false})
+      INSERT INTO payment_methods (company_id, property_id, booking_id, method_type, label, card_last4, card_expiry, card_brand, bank_name, account_last4, routing_last4, is_default)
+      VALUES (${data.companyId}::uuid, ${data.propertyId || null}::uuid, ${data.bookingId || null}::uuid, ${data.methodType}, ${data.label || null}, ${data.cardLast4 || null}, ${data.cardExpiry || null}, ${data.cardBrand || null}, ${data.bankName || null}, ${data.accountLast4 || null}, ${data.routingLast4 || null}, ${data.isDefault ?? false})
       RETURNING id
     `;
     return rows[0];
@@ -1164,6 +1164,7 @@ export const saveTokenizedPaymentMethod = createServerFn()
   .validator((data: {
     companyId: string;
     propertyId?: string;
+    bookingId?: string;
     methodType: "credit_card" | "ACH";
     label?: string;
     cardLast4?: string;
@@ -1175,13 +1176,14 @@ export const saveTokenizedPaymentMethod = createServerFn()
   }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
-      INSERT INTO payment_methods (company_id, property_id, method_type, label,
+      INSERT INTO payment_methods (company_id, property_id, booking_id, method_type, label,
         card_last4, card_expiry, card_brand, bank_name, account_last4, stripe_pm_id)
-      VALUES (${data.companyId}::uuid, ${data.propertyId || null}::uuid, ${data.methodType},
-        ${data.label || null}, ${data.cardLast4 || null}, ${data.cardExpiry || null},
+      VALUES (${data.companyId}::uuid, ${data.propertyId || null}::uuid, ${data.bookingId || null}::uuid,
+        ${data.methodType}, ${data.label || null}, ${data.cardLast4 || null}, ${data.cardExpiry || null},
         ${data.cardBrand || null}, ${data.bankName || null}, ${data.accountLast4 || null},
         ${data.stripePmId})
       ON CONFLICT (stripe_pm_id) DO UPDATE SET
+        booking_id = EXCLUDED.booking_id,
         label = EXCLUDED.label, card_last4 = EXCLUDED.card_last4,
         card_brand = EXCLUDED.card_brand
       RETURNING id

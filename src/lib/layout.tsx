@@ -16,7 +16,6 @@ const navItems = [
   { href: "/properties", label: "Properties", icon: "🏠" },
   { href: "/owners", label: "Owners", icon: "🏦" },
   { href: "/tenants", label: "Tenants & Guests", icon: "👥" },
-  { href: "/payments", label: "Payments", icon: "💳" },
   { href: "/maintenance", label: "Maintenance", icon: "🔧" },
   { href: "/vendors", label: "Vendors", icon: "🛠️" },
   { href: "/payouts", label: "Owner Payouts", icon: "💰" },

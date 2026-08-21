@@ -32,6 +32,7 @@ interface WebhookMeta {
   property_id?: string;
   payment_type?: string;
   method?: string;
+  mode?: string;
 }
 
 function metaOf(pi: { metadata?: Record<string, string> | null }): WebhookMeta {
@@ -142,6 +143,56 @@ async function handleDispute(
     UPDATE payments SET dispute_status = ${disputeStatus}
     WHERE stripe_payment_intent_id = ${piId}`;
 }
+/**
+ * setup_intent.succeeded — the guest finished the PM-side "collect card/ACH"
+ * flow (Stripe-hosted setup mode created by createSetupCheckout on_behalf_of
+ * the live connected account). Persist the tokenized PaymentMethod to
+ * payment_methods, attributed to the reservation (booking_id) so it shows up
+ * on that booking's detail page and can be charged on-demand. Idempotent on
+ * stripe_pm_id (unique index) so Stripe retries never double-insert.
+ */
+async function handleSetupIntent(se: Stripe.SetupIntent): Promise<void> {
+  const meta = metaOf(se);
+  // Only our PM-side collect flow carries company_id (+ ondemand-save flag).
+  if (!meta.company_id || meta.mode !== "ondemand-save") return;
+  const pmRef = se.payment_method;
+  if (!pmRef) return; // a successful setup always yields a payment method
+  const pmId = typeof pmRef === "string" ? pmRef : pmRef.id;
+  const companyRows = await sql()`
+    SELECT stripe_connect_account_id FROM companies WHERE id = ${meta.company_id}::uuid LIMIT 1`;
+  const acctId = companyRows[0]?.stripe_connect_account_id || undefined;
+  const { stripe } = await import("~/lib/stripe");
+  let pm: Stripe.PaymentMethod;
+  try {
+    // The PM was created on the connected account (on_behalf_of), so retrieve
+    // it in that account's context first; fall back to the platform context.
+    pm = await stripe().paymentMethods.retrieve(pmId, acctId ? { stripeAccount: acctId } : undefined);
+  } catch {
+    pm = await stripe().paymentMethods.retrieve(pmId);
+  }
+  const card = pm.card;
+  const bank = pm.us_bank_account;
+  const isAch = meta.method === "ach" || !!bank;
+  const methodType = isAch ? "ACH" : "credit_card";
+  const cardBrand = card?.brand ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1) : undefined;
+  const label = isAch
+    ? `ACH · ${bank?.bank_name || "Bank"} ····${bank?.last4 || ""}`
+    : `Card · ${cardBrand || ""} ····${card?.last4 || ""}`.trim();
+  await sql()`
+    INSERT INTO payment_methods (company_id, property_id, booking_id, method_type, label,
+      card_last4, card_expiry, card_brand, bank_name, account_last4, stripe_pm_id)
+    VALUES (${meta.company_id}::uuid,
+      ${meta.property_id || null}::uuid, ${meta.booking_id || null}::uuid,
+      ${methodType}, ${label || null},
+      ${card?.last4 || null}, ${card ? `${card.exp_month}/${String(card.exp_year).slice(-2)}` : null},
+      ${cardBrand || null}, ${bank?.bank_name || null}, ${bank?.last4 || null},
+      ${pmId})
+    ON CONFLICT (stripe_pm_id) DO UPDATE SET
+      booking_id = EXCLUDED.booking_id,
+      label = EXCLUDED.label, card_last4 = EXCLUDED.card_last4,
+      card_brand = EXCLUDED.card_brand
+  `;
+}
 
 /**
  * Process a verified Stripe webhook. Returns the Response to send back to
@@ -204,6 +255,10 @@ export async function handleStripeWebhook(
       }
       case "charge.dispute.closed": {
         await handleDispute(event.data.object as Stripe.Dispute, "closed");
+        break;
+      }
+      case "setup_intent.succeeded": {
+        await handleSetupIntent(event.data.object as Stripe.SetupIntent);
         break;
       }
       default:

@@ -12,7 +12,7 @@ import {
   addVendor, updateVendor, deleteVendor,
   addVendorPayout, updateVendorPayout,
   addOwnerCharge, addOwner, updateOwner, deleteOwner, pushPaidPayout,
-  addStoredPaymentMethod, removeStoredPaymentMethod,
+  addStoredPaymentMethod, removeStoredPaymentMethod, refreshPaymentMethods,
   addOwnerPayout, updateOwnerPayout,
   setCompanyId,
   clearPersistError,
@@ -53,6 +53,7 @@ interface StoreActions {
   updateOwnerPayout: typeof updateOwnerPayout;
   addStoredPaymentMethod: typeof addStoredPaymentMethod;
   removeStoredPaymentMethod: typeof removeStoredPaymentMethod;
+  refreshPaymentMethods: typeof refreshPaymentMethods;
   setCompanyId: typeof setCompanyId;
   clearPersistError: typeof clearPersistError;
 }
@@ -84,7 +85,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addVendorPayout, updateVendorPayout,
       addOwnerCharge, addOwner, updateOwner, deleteOwner, pushPaidPayout,
       addOwnerPayout, updateOwnerPayout,
-      addStoredPaymentMethod, removeStoredPaymentMethod,
+      addStoredPaymentMethod, removeStoredPaymentMethod, refreshPaymentMethods,
       setCompanyId,
       clearPersistError,
     }}>

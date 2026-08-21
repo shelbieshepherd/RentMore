@@ -5,7 +5,7 @@ import { formatCurrency, formatDate, calculateFees, feeConfig, type Payment } fr
 import { fillTemplate } from "~/lib/template-utils";
 import { queueEmail, leaseEmailTemplate, guestEmailTemplate } from "~/lib/email";
 import { useStore } from "~/lib/store";
-import { createOnDemandCharge } from "~/lib/db-queries";
+import { createOnDemandCharge, createSetupCheckout } from "~/lib/db-queries";
 import { convenienceFeeCents, guestTotalCents, pmNetCents } from "~/lib/fees";
 
 export const Route = createFileRoute("/bookings/$bookingId")({
@@ -91,6 +91,17 @@ function BookingDetailContent({ booking }: { booking: any }) {
   const [odBusy, setOdBusy] = useState(false);
   const [odResult, setOdResult] = useState<string>("");
   const [odError, setOdError] = useState<string>("");
+  // Collect guest card/ACH (PM-side, owner Aug 20): create a Stripe setup link
+  // the PM sends to the guest once; the guest enters their own method on
+  // Stripe's secure page. The tokenized method is persisted by the
+  // setup_intent.succeeded webhook and then chargeable on-demand.
+  const [collectMethod, setCollectMethod] = useState<"card" | "ach">("card");
+  const [collectBusy, setCollectBusy] = useState(false);
+  const [collectUrl, setCollectUrl] = useState("");
+  const [collectError, setCollectError] = useState("");
+  const [collectCopied, setCollectCopied] = useState(false);
+  const [collectEmailSent, setCollectEmailSent] = useState(false);
+  const [collectSaved, setCollectSaved] = useState(false);
   const [achAmount, setAchAmount] = useState(0);
   const [achSelectedPmId, setAchSelectedPmId] = useState<string>("");
   const [checkAmount, setCheckAmount] = useState(0);
@@ -212,6 +223,67 @@ function BookingDetailContent({ booking }: { booking: any }) {
     }
   }
 
+  // Collect guest card/ACH once (PM-side): create a Stripe setup link to send
+  // the guest. The guest enters their own method on Stripe's page (legally
+  // required — the PM never types the card), then the setup_intent.succeeded
+  // webhook persists it to payment_methods for this reservation.
+  async function handleCollectMethod(method: "card" | "ach") {
+    setCollectError(""); setCollectUrl(""); setCollectSaved(false);
+    setCollectCopied(false); setCollectEmailSent(false);
+    setCollectBusy(true);
+    try {
+      const res = await createSetupCheckout({
+        data: {
+          companyId: store.companyId,
+          bookingId: booking.id,
+          propertyId: booking.propertyId,
+          method,
+          guestEmail: booking.guestEmail || undefined,
+        },
+      });
+      if (res?.url) {
+        setCollectMethod(method);
+        setCollectUrl(res.url);
+      } else {
+        setCollectError("Couldn't create a secure payment link. Try again.");
+      }
+    } catch (e: any) {
+      setCollectError(e?.message || "Couldn't create a secure payment link.");
+    } finally {
+      setCollectBusy(false);
+    }
+  }
+  async function handleCopyCollectLink() {
+    if (!collectUrl) return;
+    try {
+      await navigator.clipboard.writeText(collectUrl);
+      setCollectCopied(true);
+      setTimeout(() => setCollectCopied(false), 2000);
+    } catch { /* clipboard unavailable */ }
+  }
+  async function handleEmailCollectLink() {
+    if (!collectUrl || !booking.guestEmail) return;
+    const methodLabel = collectMethod === "ach" ? "a bank account (ACH)" : "a card";
+    const res = await queueEmail({
+      to: booking.guestEmail,
+      toName: booking.guestName,
+      subject: `Add a payment method for Reservation #${booking.reservationNumber}`,
+      html: `<p>Hi ${booking.guestName},</p><p>Please open the secure link below and enter ${methodLabel} once. This keeps a payment method on file for your stay at ${property?.name || "our property"} so we can charge only what's owed (deposit, damages, or utilities) — without asking you again.</p><p><a href="${collectUrl}">Secure payment link</a></p><p>Thanks!</p>`,
+    });
+    setCollectEmailSent(res.success);
+    setTimeout(() => setCollectEmailSent(false), 3000);
+  }
+  // After the guest completes setup, the Stripe success_url brings the PM
+  // (or guest in a shared browser) back with ?ondemand=method-saved — flag it
+  // and refresh the saved-methods list so the new method is chargeable.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("ondemand") === "method-saved") {
+      setCollectSaved(true);
+      store.refreshPaymentMethods();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
   const secDepPaid = secDepPayments.filter((p: any) => p.amount > 0).reduce((s: number, p: any) => s + p.amount, 0);
   const secDepRefunded = secDepPayments.filter((p: any) => p.amount < 0).reduce((s: number, p: any) => s + Math.abs(p.amount), 0);
   const secDepRequired = booking.securityDeposit || 0;
@@ -699,6 +771,42 @@ function BookingDetailContent({ booking }: { booking: any }) {
               <button onClick={() => { setRefundAmount(0); setRefundMethod("credit_card"); setRefundDescription("Refund to guest"); setRefundSelectedPmId(""); setPaySuccess(false); setShowRefund(true); }} className="border border-red-300 text-red-700 hover:bg-red-50 rounded-lg text-xs flex-1 py-2 font-medium min-w-[80px]">↩ Refund</button>
             </div>
 
+            {/* Collect guest card/ACH (one-time, PM-side) — owner Aug 20 */}
+            <div className="card p-4">
+              <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-1">💳 Collect guest card / ACH (one-time)</h3>
+              <p className="text-[11px] text-gray-400 mb-3">
+                Send the guest a secure link to enter their card or bank once on Stripe's page — you never type their
+                details. Once saved it shows up below and you can charge it on-demand without asking them again. Card:
+                the guest pays a 3.5% convenience fee on each charge. ACH: free for the guest.
+              </p>
+              {!collectUrl ? (
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => handleCollectMethod("card")} disabled={collectBusy} className="btn-accent text-xs py-2 disabled:opacity-50">
+                    {collectBusy ? "Creating link…" : "💳 Collect card"}
+                  </button>
+                  <button onClick={() => handleCollectMethod("ach")} disabled={collectBusy} className="btn-secondary text-xs py-2 disabled:opacity-50">
+                    {collectBusy ? "Creating link…" : "🏦 Collect bank (ACH)"}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded-lg p-2">
+                    ✅ <span className="font-medium">Send this secure link to the guest</span> — they enter their own{" "}
+                    {collectMethod === "ach" ? "bank account" : "card"} once on Stripe's page.
+                  </p>
+                  <div className="flex gap-2">
+                    <input readOnly value={collectUrl} className="flex-1 text-[11px] bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 font-mono text-gray-700" />
+                    <button onClick={handleCopyCollectLink} className="btn-secondary text-xs py-1.5">{collectCopied ? "✓ Copied" : "Copy"}</button>
+                  </div>
+                  {booking.guestEmail && (
+                    <button onClick={handleEmailCollectLink} className="btn-accent text-xs py-1.5">{collectEmailSent ? "✓ Email sent to guest" : `Email link to ${booking.guestName}`}</button>
+                  )}
+                  <button onClick={() => { setCollectUrl(""); setCollectError(""); }} className="text-[11px] text-gray-400 underline">New link</button>
+                </div>
+              )}
+              {collectError && <p className="text-[11px] text-red-600 mt-2">{collectError}</p>}
+              {collectSaved && <p className="text-[11px] text-teal-700 mt-2">✅ Guest payment method saved — it's listed below and ready to charge.</p>}
+            </div>
             {/* On-demand charge (owner Aug 14): charge a saved card/ACH anytime */}
             <div className="card p-4">
               <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-1">💳 Charge Saved Card / ACH (on-demand)</h3>

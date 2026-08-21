@@ -152,7 +152,7 @@ function DashboardHome() {
             <p className="mt-2 text-xs text-gray-400">{totalTenants} tenants · {activeGuests} checked-in · {upcomingGuests} upcoming</p>
           </Link>
 
-          <Link to="/payments" className="stat-card cursor-pointer hover:shadow-md transition-shadow">
+          <Link to="/bookings" className="stat-card cursor-pointer hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-yellow-50 p-3">
                 <span className="text-xl">💳</span>

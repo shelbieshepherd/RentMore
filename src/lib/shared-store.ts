@@ -303,6 +303,7 @@ function mapDbOwner(o: any): Owner {
 function mapDbPaymentMethod(pm: any): PaymentMethodEntry {
   return {
     id: pm.id, propertyId: pm.property_id || "",
+    bookingId: pm.booking_id || undefined,
     methodType: pm.method_type as PaymentMethodEntry["methodType"],
     label: pm.label, cardLast4: pm.card_last4,
     cardExpiry: pm.card_expiry, cardBrand: pm.card_brand,
@@ -604,6 +605,7 @@ export function addStoredPaymentMethod(method: Omit<PaymentMethodEntry, "id">): 
     const { insertPaymentMethod } = await import("./db-queries");
     await insertPaymentMethod({ data: {
       companyId: state.companyId, propertyId: method.propertyId,
+      bookingId: method.bookingId,
       methodType: method.methodType,
       label: method.label, cardLast4: method.cardLast4,
       cardExpiry: method.cardExpiry, cardBrand: method.cardBrand,
@@ -622,7 +624,19 @@ export function removeStoredPaymentMethod(id: string) {
   });
   return idx >= 0;
 }
-
+/**
+ * Re-fetch payment methods from the DB and replace the store's copy. Call this
+ * after the guest completes the "keep on file" setup flow (collect-from-
+ * reservation) so the just-saved method shows up without a full page reload.
+ */
+export async function refreshPaymentMethods(): Promise<void> {
+  try {
+    const { fetchPaymentMethods } = await import("./db-queries");
+    const rows = await fetchPaymentMethods({ data: { companyId: state.companyId } });
+    state.paymentMethods = rows.map(mapDbPaymentMethod);
+    notify();
+  } catch { /* DB unavailable — leave store as-is */ }
+}
 // ── Non-DB-persisted mutations (in-memory only — no DB table yet) ──
 export function addDocument(d: Omit<SignedDocument, "id">): SignedDocument {
   const entry: SignedDocument = { ...d, id: crypto.randomUUID() };
