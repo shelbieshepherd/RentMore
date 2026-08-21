@@ -451,9 +451,15 @@ export function addMaintenanceNote(_id: string, _note: string) {
   // Placeholder — maintenance notes stored in state
 }
 export function addBooking(b: Omit<Booking, "id" | "reservationNumber" | "activityLog" | "emailLog"> & { reservationNumber?: string }): Booking {
+  // 4-digit booking number (owner direction 2026-08-21), unique among demo bookings.
+  let rn = b.reservationNumber || "";
+  if (!rn) {
+    const used = new Set(state.bookings.map(x => x.reservationNumber));
+    do { rn = String(Math.floor(Math.random() * 10000)).padStart(4, "0"); } while (used.has(rn));
+  }
   const entry: Booking = {
     ...b, id: crypto.randomUUID(),
-    reservationNumber: b.reservationNumber || `BK-${Date.now().toString(36).toUpperCase()}`,
+    reservationNumber: rn,
     activityLog: [], emailLog: [],
   };
   state.bookings.push(entry); notify();

@@ -503,7 +503,15 @@ export const insertBooking = createServerFn()
   .validator((data: { companyId: string; propertyId: string; guestName: string; guestEmail: string; guestPhone?: string; guestAddress?: string; startDate: string; endDate: string; nightlyRate: number; status: string; totalAmount: number; source: string; commissionRate: number; createdBy: string; cleaningFee?: number; linenFee?: number; taxAmount?: number }) => data)
   .handler(async ({ data }) => {
     await assertSubscriptionActive(data.companyId);
-    const rn = `BK-${Date.now().toString(36).toUpperCase()}`;
+    // 4-digit booking number, unique within the company (owner direction 2026-08-21).
+    // Retry on collision; fall back to last-4-of-timestamp if exhausted.
+    let rn = "";
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const cand = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+      const clash = await sql()`SELECT 1 FROM bookings WHERE company_id = ${data.companyId}::uuid AND reservation_number = ${cand} LIMIT 1`;
+      if (!clash.length) { rn = cand; break; }
+    }
+    if (!rn) rn = String(Date.now()).slice(-4);
     const rows = await sql()`
       INSERT INTO bookings (company_id, property_id, guest_name, guest_email, guest_phone, guest_address, start_date, end_date, nightly_rate, status, total_amount, source, reservation_number, commission_rate, created_by, cleaning_fee, linen_fee, tax_amount)
       VALUES (${data.companyId}::uuid, ${data.propertyId}::uuid, ${data.guestName}, ${data.guestEmail}, ${data.guestPhone || null}, ${data.guestAddress || null}, ${data.startDate}::date, ${data.endDate}::date, ${data.nightlyRate}, ${data.status}, ${data.totalAmount}, ${data.source}, ${rn}, ${data.commissionRate}, ${data.createdBy}, ${data.cleaningFee ?? null}, ${data.linenFee ?? null}, ${data.taxAmount ?? null})
