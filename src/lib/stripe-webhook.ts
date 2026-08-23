@@ -226,7 +226,12 @@ export async function handleStripeWebhook(
     switch (event.type) {
       case "account.updated": {
         const acct = event.data.object as Stripe.Account;
-        const complete = !!(acct.details_submitted && acct.charges_enabled);
+        // Onboarding is only "complete" when the account can actually charge:
+        const complete = !!(
+          acct.details_submitted &&
+          acct.charges_enabled &&
+          acct.capabilities?.card_payments === "active"
+        );
         await sql()`
           UPDATE companies SET stripe_connect_onboarding_complete = ${complete}
           WHERE stripe_connect_account_id = ${acct.id}`;

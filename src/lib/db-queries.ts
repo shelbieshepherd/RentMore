@@ -774,9 +774,27 @@ export const setConnectOnboardingComplete = createServerFn()
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     if (data.companyId === DEFAULT_COMPANY_ID) return { success: true };
+    const rows = await sql()`
+      SELECT stripe_connect_account_id FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
+    const acctId = rows[0]?.stripe_connect_account_id;
+    if (!acctId) return { success: false, reason: "no_connect_account" };
+    // Hardening: only mark onboarding complete if the connected account can
+    // ACTUALLY charge cards — charges_enabled AND card_payments capability active.
+    // The ?onboarded=1 return alone is a client-trusted signal; verify against
+    // Stripe before flipping the flag so a non-chargeable account is never gated-in.
+    const { getConnectReadiness } = await import("~/lib/stripe");
+    let readiness: { ready: boolean };
+    try {
+      readiness = await getConnectReadiness(acctId);
+    } catch (e: any) {
+      return { success: false, reason: "retrieve_failed", message: e?.message };
+    }
+    if (!readiness.ready) {
+      return { success: false, reason: "not_ready", accountId: acctId };
+    }
     await sql()`
       UPDATE companies SET stripe_connect_onboarding_complete = true WHERE id = ${data.companyId}::uuid`;
-    return { success: true };
+    return { success: true, accountId: acctId };
   });
 
 export const fetchConnectStatus = createServerFn()

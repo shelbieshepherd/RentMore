@@ -79,6 +79,30 @@ export async function getOnboardingLink(input: OnboardingLinkInput) {
   });
 }
 
+export interface ConnectReadiness {
+  accountId: string;
+  chargesEnabled: boolean;
+  cardPaymentsActive: boolean;
+  ready: boolean;
+}
+
+/**
+ * Retrieve a connected account and report whether it can ACTUALLY charge cards.
+ * "Onboarding complete" is only meaningful if the account can process charges:
+ * charges_enabled must be true AND the card_payments capability must be 'active'
+ * (not 'inactive'/'pending'). Used before flipping companies.stripe_connect_onboarding_complete.
+ */
+export async function getConnectReadiness(accountId: string): Promise<ConnectReadiness> {
+  const acct = await stripe().accounts.retrieve(accountId);
+  const cardPaymentsActive = acct.capabilities?.card_payments === "active";
+  const chargesEnabled = !!acct.charges_enabled;
+  return {
+    accountId: acct.id,
+    chargesEnabled,
+    cardPaymentsActive,
+    ready: chargesEnabled && cardPaymentsActive,
+  };
+}
 export interface CheckoutSessionInput {
   connectedAccountId: string;
   amountCents: number;
