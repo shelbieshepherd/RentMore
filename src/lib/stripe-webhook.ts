@@ -159,6 +159,10 @@ async function handleSetupIntent(se: Stripe.SetupIntent): Promise<void> {
   const pmRef = se.payment_method;
   if (!pmRef) return; // a successful setup always yields a payment method
   const pmId = typeof pmRef === "string" ? pmRef : pmRef.id;
+  // The Customer the PM is attached to (on the connected account once the
+  // collect flow passes `customer`). Needed for the off-session charge later.
+  const customerId =
+    typeof se.customer === "string" ? se.customer : (se.customer as any)?.id ?? null;
   const companyRows = await sql()`
     SELECT stripe_connect_account_id FROM companies WHERE id = ${meta.company_id}::uuid LIMIT 1`;
   const acctId = companyRows[0]?.stripe_connect_account_id || undefined;
@@ -181,17 +185,17 @@ async function handleSetupIntent(se: Stripe.SetupIntent): Promise<void> {
     : `Card · ${cardBrand || ""} ····${card?.last4 || ""}`.trim();
   await sql()`
     INSERT INTO payment_methods (company_id, property_id, booking_id, method_type, label,
-      card_last4, card_expiry, card_brand, bank_name, account_last4, stripe_pm_id)
+      card_last4, card_expiry, card_brand, bank_name, account_last4, stripe_pm_id, stripe_customer_id)
     VALUES (${meta.company_id}::uuid,
       ${meta.property_id || null}::uuid, ${meta.booking_id || null}::uuid,
       ${methodType}, ${label || null},
       ${card?.last4 || null}, ${card ? `${card.exp_month}/${String(card.exp_year).slice(-2)}` : null},
       ${cardBrand || null}, ${bank?.bank_name || null}, ${bank?.last4 || null},
-      ${pmId})
+      ${pmId}, ${customerId})
     ON CONFLICT (stripe_pm_id) DO UPDATE SET
       booking_id = EXCLUDED.booking_id,
       label = EXCLUDED.label, card_last4 = EXCLUDED.card_last4,
-      card_brand = EXCLUDED.card_brand
+      card_brand = EXCLUDED.card_brand, stripe_customer_id = EXCLUDED.stripe_customer_id
   `;
 }
 

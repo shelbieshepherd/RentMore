@@ -1151,6 +1151,34 @@ export const createSetupCheckout = createServerFn()
     const returnBase = data.bookingId
       ? `${SITE_BASE}/bookings/${encodeURIComponent(data.bookingId)}`
       : `${SITE_BASE}/bookings`;
+    // CRITICAL (2026-08-23, diagnostic collect-card-api-diagnostic.md): with
+    // setup-mode on_behalf_of but NO Customer, Stripe attaches the saved PM to
+    // the PLATFORM account, not the connected account (observed: context=platform,
+    // connected paymentMethods.list=[] despite on_behalf_of). For the
+    // collect-then-charge flow (Option A, separate charges) the PM MUST live on a
+    // Customer on the CONNECTED account so createOnDemandCharge (on_behalf_of +
+    // off_session) can charge it later. So we create (or reuse) a stripped-back
+    // Customer ON the connected account (stripeAccount = acct) and pass it as
+    // `customer` — the resulting PaymentMethod then attaches to that connected
+    // account Customer. `customer` and `customer_email` are mutually exclusive,
+    // so we only fall back to customer_email when no guest email is known.
+    const acctId = company.stripe_connect_account_id;
+    const email = data.guestEmail?.trim() || undefined;
+    let customerId: string | undefined;
+    if (email) {
+      const existing = await stripe().customers.list(
+        { email, limit: 1 },
+        { stripeAccount: acctId },
+      );
+      customerId = existing.data[0]?.id;
+    }
+    if (!customerId) {
+      const cust = await stripe().customers.create(
+        { ...(email ? { email } : {}), metadata: { company_id: data.companyId } },
+        { stripeAccount: acctId },
+      );
+      customerId = cust.id;
+    }
     const session = await stripe().checkout.sessions.create({
       mode: "setup",
       // Stripe rejects top-level `on_behalf_of` on mode:"setup" sessions
@@ -1158,7 +1186,7 @@ export const createSetupCheckout = createServerFn()
       // (customer = merchant of record) must be declared via
       // setup_intent_data.on_behalf_of so the saved PaymentMethod/customer are
       // attributed to the CONNECTED account, not the platform. (2026-08-21)
-      customer_email: data.guestEmail || undefined,
+      ...(customerId ? { customer: customerId } : { customer_email: email || undefined }),
       payment_method_types: data.method === "ach" ? ["us_bank_account"] : ["card"],
       metadata: meta,
       payment_method_data: { allow_redisplay: "always" },
@@ -1171,13 +1199,13 @@ export const createSetupCheckout = createServerFn()
         // never saved to the reservation even though the owner entered it).
         // Mirrors the working payment path, which attaches metadata inside
         // payment_intent_data.metadata. (2026-08-21)
-        on_behalf_of: company.stripe_connect_account_id, // customer = merchant of record
+        on_behalf_of: acctId, // customer = merchant of record
         metadata: meta,
       },
       success_url: `${returnBase}?ondemand=method-saved`,
       cancel_url: `${returnBase}?ondemand=cancelled`,
     });
-    return { url: session.url, setupIntentId: session.id, mock: false };
+    return { url: session.url, setupIntentId: session.id, customerId, mock: false };
   });
 
 /**
@@ -1197,19 +1225,20 @@ export const saveTokenizedPaymentMethod = createServerFn()
     bankName?: string;
     accountLast4?: string;
     stripePmId: string;
+    stripeCustomerId?: string;
   }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
       INSERT INTO payment_methods (company_id, property_id, booking_id, method_type, label,
-        card_last4, card_expiry, card_brand, bank_name, account_last4, stripe_pm_id)
+        card_last4, card_expiry, card_brand, bank_name, account_last4, stripe_pm_id, stripe_customer_id)
       VALUES (${data.companyId}::uuid, ${data.propertyId || null}::uuid, ${data.bookingId || null}::uuid,
         ${data.methodType}, ${data.label || null}, ${data.cardLast4 || null}, ${data.cardExpiry || null},
         ${data.cardBrand || null}, ${data.bankName || null}, ${data.accountLast4 || null},
-        ${data.stripePmId})
+        ${data.stripePmId}, ${data.stripeCustomerId || null})
       ON CONFLICT (stripe_pm_id) DO UPDATE SET
         booking_id = EXCLUDED.booking_id,
         label = EXCLUDED.label, card_last4 = EXCLUDED.card_last4,
-        card_brand = EXCLUDED.card_brand
+        card_brand = EXCLUDED.card_brand, stripe_customer_id = EXCLUDED.stripe_customer_id
       RETURNING id
     `;
     return rows[0];
@@ -1231,7 +1260,7 @@ export const createOnDemandCharge = createServerFn()
   .handler(async ({ data }) => {
     if (data.amountCents <= 0) throw new Error("Charge amount must be greater than zero.");
     const pms = await sql()`
-      SELECT id, method_type, label, card_last4, stripe_pm_id, bank_name, account_last4
+      SELECT id, method_type, label, card_last4, stripe_pm_id, stripe_customer_id, bank_name, account_last4
       FROM payment_methods WHERE id = ${data.methodId}::uuid`;
     const pm = pms[0];
     if (!pm) throw new Error("Saved payment method not found.");
@@ -1240,6 +1269,7 @@ export const createOnDemandCharge = createServerFn()
     const guestTotal = guestTotalCents(data.amountCents, method);
     const pmNet = pmNetCents(data.amountCents, method);
     const stripePmId = pm.stripe_pm_id;
+    const stripeCustomerId = pm.stripe_customer_id || undefined;
     const description = `On-demand ${isAch ? "ACH" : "card"} charge — ${data.reason}`;
     const processingFee = stripeFeeCents(guestTotal, method);
     // Demo company (or a saved method with no Stripe token yet): mock the
@@ -1275,11 +1305,14 @@ export const createOnDemandCharge = createServerFn()
     if (data.propertyId) meta.property_id = data.propertyId;
     // Off-session charge against the saved PaymentMethod on the connected
     // account (customer = merchant of record). on_behalf_of + separate
-    // charge ownership — RentMore is never the merchant of record.
+    // charge ownership — RentMore is never the merchant of record. `customer`
+    // (on the connected account) must be passed for an off-session charge of a
+    // saved PM; it is set by the collect flow and recorded on the method row.
     const pi = await stripe().paymentIntents.create({
       amount: guestTotal,
       currency: "usd",
       payment_method: stripePmId,
+      ...(stripeCustomerId ? { customer: stripeCustomerId } : {}),
       payment_method_types: isAch ? ["us_bank_account"] : ["card"],
       confirm: true,
       off_session: true,
