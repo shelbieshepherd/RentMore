@@ -72,21 +72,47 @@ export async function handleStripeDiagnostic(): Promise<
     out.session = { error: e?.message ?? "retrieve failed" };
   }
 
-  // 2) The SetupIntent linked to the session, on the CONNECTED account
+  // 2) The SetupIntent linked to the session (try connected first, then platform)
   const se = (out.session as any)?.setup_intent;
   if (typeof se === "string") {
+    let si: any;
     try {
-      const si = await st.setupIntents.retrieve(se, {
-        stripeAccount: TARGET_ACCT,
-        expand: ["payment_method"],
-      });
+      si = await st.setupIntents.retrieve(se, { expand: ["payment_method"] }, { stripeAccount: TARGET_ACCT });
+      out.setup_intent_context = "connected";
+    } catch (e: any) {
+      try {
+        si = await st.setupIntents.retrieve(se, { expand: ["payment_method"] });
+        out.setup_intent_context = "platform";
+      } catch (e2: any) {
+        out.setup_intent = { error: `${e?.message} / ${e2?.message ?? ""}`.trim() };
+      }
+    }
+    if (si) {
       const anySi = si as any;
       out.setup_intent = sumSi(si);
+      // CRITICAL: does the SetupIntent itself carry the ondemand-save metadata
+      // that handleSetupIntent's guard requires (meta.mode==="ondemand-save"+company_id)?
+      out.setup_intent_metadata = (si.metadata as Record<string, string>) ?? {};
+      out.setup_intent_guard_ok =
+        !!si.metadata?.company_id && si.metadata?.mode === "ondemand-save";
       out.setup_intent_payment_method = sumPm(anySi?.payment_method ?? null);
-      // Re-read full exit status from the typed object too
+      out.setup_intent_pm_id = (anySi?.payment_method as any)?.id ?? null;
       out.setup_intent_has_pm = !!anySi?.payment_method;
-    } catch (e: any) {
-      out.setup_intent = { error: e?.message ?? "retrieve failed" };
+      out.setup_intent_on_behalf_of = si.on_behalf_of ?? si.account ?? null;
+    }
+  }
+
+  // 2b) All saved payment methods on the CONNECTED account (does the card exist there?)
+  try {
+    const pms = await st.paymentMethods.list({ limit: 20, type: "card" }, { stripeAccount: TARGET_ACCT });
+    out.connected_payment_methods = pms.data.map(sumPm);
+  } catch (e: any) {
+    try {
+      const pms = await st.paymentMethods.list({ limit: 20, type: "card" });
+      out.connected_payment_methods = pms.data.map(sumPm);
+      out.connected_pm_platform_fallback = true;
+    } catch (e2: any) {
+      out.connected_payment_methods = { error: e2?.message ?? "list failed" };
     }
   }
 
