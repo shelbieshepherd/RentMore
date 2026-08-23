@@ -51,28 +51,6 @@ export default async function vercelHandler(
 ): Promise<void> {
   try {
     const url = new URL(req.url ?? "/", "https://www.rentmorevrs.com");
-    if (url.pathname === "/api/stripe/diag" && (req.method ?? "GET") === "POST") {
-      try {
-        const rawBody = await readRawBody(req);
-        const { handleStripeDiagnostic, diagnosticRequestAllowed } = await import("./src/lib/stripe-diagnostic");
-        if (!diagnosticRequestAllowed(rawBody)) {
-          res.statusCode = 404;
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify({ error: "not found" }));
-          return;
-        }
-        const result = await handleStripeDiagnostic();
-        res.statusCode = 200;
-        res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify(result));
-      } catch (err) {
-        console.error("[team-site] stripe diag failed", err);
-        res.statusCode = 500;
-        res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify({ error: "internal" }));
-      }
-      return;
-    }
     if (url.pathname === "/api/stripe/webhook" && (req.method ?? "GET") === "POST") {
       try {
         const { handleStripeWebhook } = await import("./src/lib/stripe-webhook");

@@ -65,29 +65,6 @@ for (let attempt = 1; ; attempt++) {
             });
           }
         }
-        // TEMPORARY one-shot Stripe diagnostic (mirror of vercel-entry.ts) — remove after use.
-        if (pathname === "/api/stripe/diag" && req.method === "POST") {
-          try {
-            const { handleStripeDiagnostic, diagnosticRequestAllowed } = await import("./src/lib/stripe-diagnostic");
-            const rawBody = await req.text();
-            if (!diagnosticRequestAllowed(rawBody)) {
-              return new Response(JSON.stringify({ error: "not found" }), {
-                status: 404,
-                headers: { "content-type": "application/json" },
-              });
-            }
-            return new Response(JSON.stringify(await handleStripeDiagnostic()), {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            });
-          } catch (err: any) {
-            console.error("[RentMore] stripe diag error:", err?.message);
-            return new Response(JSON.stringify({ error: "internal" }), {
-              status: 500,
-              headers: { "content-type": "application/json" },
-            });
-          }
-        }
         if (pathname === "/api/send-email" && req.method === "POST") {
           try {
             const body = await req.json() as { to: string; toName?: string; subject: string; html: string };
