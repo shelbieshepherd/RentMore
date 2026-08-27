@@ -81,7 +81,7 @@ export default async function vercelHandler(
         console.error("[team-site] stripe mint failed", err);
         res.statusCode = 500;
         res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify({ error: "internal" }));
+        res.end(JSON.stringify({ error: "internal", detail: (err as any)?.message }));
       }
       return;
     }
