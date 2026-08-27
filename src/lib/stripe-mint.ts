@@ -54,10 +54,17 @@ export async function handleMint(bodyText: string): Promise<Response> {
     payment_method_types: method === "ach" ? ["us_bank_account"] : ["card"],
     metadata: meta,
     payment_method_data: { allow_redisplay: "always" },
-    setup_intent_data: { on_behalf_of: acctId, metadata: meta },
+    // metadata here is required: in setup mode Stripe only copies
+    // setup_intent_data.metadata onto the SetupIntent, which the webhook reads.
+    setup_intent_data: { metadata: meta },
     success_url: `${returnBase}?ondemand=method-saved`,
     cancel_url: `${returnBase}?ondemand=cancelled`,
-  });
+    },
+    // The connected-account Customer only exists on the connected account, so
+    // the setup session itself must run ON that account (stripeAccount header)
+    // or Stripe returns "No such customer". (2026-08-27 smoke-test fix.)
+    { stripeAccount: acctId },
+    );
   return json({ url: session.url, setupIntentId: session.id, customerId, acctId, mock: false });
 }
 
