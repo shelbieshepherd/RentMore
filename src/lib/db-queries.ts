@@ -1217,12 +1217,22 @@ export const createSetupCheckout = createServerFn()
         // never saved to the reservation even though the owner entered it).
         // Mirrors the working payment path, which attaches metadata inside
         // payment_intent_data.metadata. (2026-08-21)
-        on_behalf_of: acctId, // customer = merchant of record
         metadata: meta,
       },
+      // CRITICAL (2026-08-27 live smoke test): the connected-account Customer
+      // only exists on the connected account, so the setup Checkout session MUST
+      // run ON that account via the { stripeAccount: acctId } request option, or
+      // Stripe returns "No such customer" (session runs on the platform). With the
+      // session on the connected account, the saved PaymentMethod automatically
+      // attaches to the connected account — `on_behalf_of` in setup_intent_data is
+      // no longer needed (and keeping it is redundant/unnecessary). We still pass
+      // setup_intent_data.metadata because the setup_intent.succeeded webhook reads
+      // its metadata from there (session metadata is NOT copied in setup mode).
       success_url: `${returnBase}?ondemand=method-saved`,
       cancel_url: `${returnBase}?ondemand=cancelled`,
-    });
+    }, // request options — run the session on the connected account
+    { stripeAccount: acctId },
+  );
     return { url: session.url, setupIntentId: session.id, customerId, mock: false };
   });
 
