@@ -3,7 +3,7 @@
 // way the shipped app does (connected-account Customer + customer: on the setup
 // session). Runs on the live host with the live platform key. Gated by a token
 // + exact booking/company ids. REMOVE THIS FILE AND ITS WIRING AFTER THE SMOKE TEST.
-import { sql } from "../src/db";
+import { sql } from "../db";
 const GATE = "smoke_HcCffthzpETnWbGArkVgrcjI";
 const EXPECT_BOOKING = "11e968fc-036b-42b7-90c8-ef92cd0b618a";
 const EXPECT_COMPANY = "7e37203a-6c46-4e39-8be8-c3116a798574";
