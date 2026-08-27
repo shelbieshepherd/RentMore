@@ -43,9 +43,15 @@ function SettingsPaymentsPage() {
         let st = await fetchConnectStatus({ data: { companyId } });
         if (cancelled) return;
         if (st.accountId && !st.onboardingComplete && new URLSearchParams(location.search).has("onboarded")) {
-          await setConnectOnboardingComplete({ data: { companyId } });
-          st = { ...st, onboardingComplete: true };
-          if (!cancelled) setNotice("Onboarding complete — your account is ready to accept online payments.");
+          const res = await setConnectOnboardingComplete({ data: { companyId } });
+          if (res.success) {
+            st = { ...st, onboardingComplete: true };
+            if (!cancelled) setNotice("Onboarding complete — your account is ready to accept online payments.");
+          } else {
+            // Server verifies against Stripe and only flips the flag when the
+            // account can actually charge; surface a clear explainer otherwise.
+            if (!cancelled) setNotice("Your Stripe onboarding returned, but your account isn't verified as charge-enabled yet. We'll confirm as soon as it is — this can take a few minutes.");
+          }
         }
         if (!cancelled) setStatus(st);
       } catch (e: any) {
