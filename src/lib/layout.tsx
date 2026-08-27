@@ -34,7 +34,7 @@ const navItems = [
 
 export function DashboardLayout({ children, currentPath = "" }: { children: ReactNode; currentPath?: string }) {
   const { isAuthenticated, logout, user } = useAuth();
-  const { bookings, tenants } = useStore();
+  const { bookings, tenants, persistError, clearPersistError } = useStore();
   const navigate = useNavigate();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddType, setQuickAddType] = useState<QuickAddType | null>(null);
@@ -276,6 +276,22 @@ export function DashboardLayout({ children, currentPath = "" }: { children: Reac
 
         {/* Page content */}
         <div className="p-4 md:p-8">
+          {persistError && (
+            <div role="alert" className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="flex items-start gap-2">
+                <span aria-hidden>⚠️</span>
+                <div>
+                  <p className="font-medium">This change could not be saved</p>
+                  <p className="mt-0.5 text-red-600">{persistError}</p>
+                </div>
+              </div>
+              <button
+                onClick={clearPersistError}
+                className="shrink-0 rounded p-1 text-red-400 hover:bg-red-100 hover:text-red-600"
+                aria-label="Dismiss error"
+              >✕</button>
+            </div>
+          )}
           {children}
         </div>
       </main>

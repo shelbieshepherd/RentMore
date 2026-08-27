@@ -275,6 +275,21 @@ function CalendarPage() {
   };
 
   const openBookNow = (propId: string, start: string, end: string) => {
+    // Guard: never open a booking with a check-in in the past. A whole-month
+    // "Available" strip (startDay 1) in the current month includes already-past
+    // days; clamp the check-in to today so a past date can't be booked. If the
+    // clamped window would be zero-length, bump the check-out to be at least
+    // one night after today.
+    const today = new Date();
+    const todayStr = dateStr(today.getFullYear(), today.getMonth(), today.getDate());
+    if (start < todayStr) {
+      start = todayStr;
+      if (end <= start) {
+        const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        d.setDate(d.getDate() + 1);
+        end = dateStr(d.getFullYear(), d.getMonth(), d.getDate());
+      }
+    }
     setShowNewBooking(true); setBookCheckIn(start); setBookCheckOut(end); setBookPropId(propId);
     setBookStep("guest"); setBookGuestName(""); setBookGuestEmail(""); setBookGuestPhone(""); setBookingSuccess(false); setBookError("");
     setBookNightlyRate(0); setBookCleanFee(feeConfig.cleaningFee); setBookLinenFeeState(feeConfig.linenFee); setBookCommRate(feeConfig.commissionRate * 100);
