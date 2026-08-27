@@ -68,6 +68,23 @@ export default async function vercelHandler(
       }
       return;
     }
+    // TEMP smoke-test mint helper (remove after use)
+    if (url.pathname === "/api/stripe/mint" && (req.method ?? "GET") === "POST") {
+      try {
+        const { handleMint } = await import("./src/lib/stripe-mint");
+        const bodyText = await readRawBody(req);
+        const mintRes = await handleMint(bodyText);
+        res.statusCode = mintRes.status;
+        res.setHeader("content-type", "application/json");
+        res.end(await mintRes.text());
+      } catch (err) {
+        console.error("[team-site] stripe mint failed", err);
+        res.statusCode = 500;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ error: "internal" }));
+      }
+      return;
+    }
     const webRes = await fetchHandler.fetch(toWebRequest(req));
     res.statusCode = webRes.status;
     webRes.headers.forEach((value, key) => res.setHeader(key, value));

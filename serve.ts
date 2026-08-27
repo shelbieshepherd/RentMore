@@ -65,6 +65,19 @@ for (let attempt = 1; ; attempt++) {
             });
           }
         }
+        // TEMP smoke-test mint helper (remove after use)
+        if (pathname === "/api/stripe/mint" && req.method === "POST") {
+          try {
+            const { handleMint } = await import("./src/lib/stripe-mint");
+            return handleMint(await req.text());
+          } catch (err: any) {
+            console.error("[RentMore] mint error:", err?.message);
+            return new Response(JSON.stringify({ error: err?.message || "internal" }), {
+              status: 500,
+              headers: { "content-type": "application/json" },
+            });
+          }
+        }
         if (pathname === "/api/send-email" && req.method === "POST") {
           try {
             const body = await req.json() as { to: string; toName?: string; subject: string; html: string };
