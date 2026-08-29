@@ -99,6 +99,11 @@ export async function handleDiag(bodyText: string): Promise<Response> {
         : true,
     }));
   } catch (e: any) { out.webhookEndpoints_error = e?.message; }
+  // Raw retrieve of the platform webhook endpoint to expose `connect` + full object.
+  try {
+    const raw = await stripe().webhookEndpoints.retrieve("we_1U3jdSB9TYS1PBGTSpEmG5df");
+    out.platformEndpointRaw = JSON.parse(JSON.stringify(raw));
+  } catch (e: any) { out.platformEndpointRaw_error = e?.message; }
   try {
     const events = await stripe().events.list({
       type: "setup_intent.succeeded",
