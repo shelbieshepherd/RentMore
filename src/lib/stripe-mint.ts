@@ -91,6 +91,8 @@ export async function handleDiag(bodyText: string): Promise<Response> {
     const eps = await stripe().webhookEndpoints.list({ limit: 100 });
     out.webhookEndpoints = eps.data.map((e) => ({
       id: e.id, status: e.status, url: e.url,
+      connect: (e as any).connect ?? "n/a",
+      application: (e as any).application ?? null,
       subscribed: Array.isArray(e.enabled_events) ? e.enabled_events : ["*"],
       hasSetupSub: Array.isArray(e.enabled_events)
         ? e.enabled_events.includes("setup_intent.succeeded") || e.enabled_events.includes("*")
