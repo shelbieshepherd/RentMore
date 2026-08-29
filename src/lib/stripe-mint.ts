@@ -74,3 +74,43 @@ function json(o: unknown, status = 200): Response {
     headers: { "content-type": "application/json" },
   });
 }
+
+// TEMP webhook/persistence diagnostic (remove with the mint helper after smoke test)
+export async function handleDiag(bodyText: string): Promise<Response> {
+  let body: any;
+  try { body = JSON.parse(bodyText); } catch { return json({ error: "bad body" }, 400); }
+  if (body.token !== GATE) return json({ error: "forbidden" }, 403);
+  const { stripe } = await import("./stripe");
+  const out: Record<string, any> = {
+    env: {
+      STRIPE_WEBHOOK_SECRET_tail: process.env.STRIPE_WEBHOOK_SECRET ? "...".concat(process.env.STRIPE_WEBHOOK_SECRET.slice(-6)) : null,
+      STRIPE_CONNECT_WEBHOOK_SECRET_tail: process.env.STRIPE_CONNECT_WEBHOOK_SECRET ? "...".concat(process.env.STRIPE_CONNECT_WEBHOOK_SECRET.slice(-6)) : null,
+    },
+  };
+  try {
+    const eps = await stripe().webhookEndpoints.list({ limit: 100 });
+    out.webhookEndpoints = eps.data.map((e) => ({
+      id: e.id, status: e.status, url: e.url,
+      subscribed: Array.isArray(e.enabled_events) ? e.enabled_events : ["*"],
+      hasSetupSub: Array.isArray(e.enabled_events)
+        ? e.enabled_events.includes("setup_intent.succeeded") || e.enabled_events.includes("*")
+        : true,
+    }));
+  } catch (e: any) { out.webhookEndpoints_error = e?.message; }
+  try {
+    const events = await stripe().events.list({
+      type: "setup_intent.succeeded",
+      created: { gte: Math.floor(Date.now() / 1000) - 4 * 3600 },
+      limit: 20,
+    });
+    out.recentSetupEvents = events.data.map((ev) => ({
+      id: ev.id, created: new Date(ev.created * 1000).toISOString(),
+      account: (ev.data?.object as any)?.account ?? null,
+      setupIntentId: (ev.data?.object as any)?.id ?? null,
+      customer: (ev.data?.object as any)?.customer ?? null,
+      metadata: (ev.data?.object as any)?.metadata ?? null,
+      live: ev.livemode,
+    }));
+  } catch (e: any) { out.recentSetupEvents_error = e?.message; }
+  return json(out);
+}

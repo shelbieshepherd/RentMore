@@ -85,6 +85,23 @@ export default async function vercelHandler(
       }
       return;
     }
+    // TEMP smoke-test diag helper (remove after use)
+    if (url.pathname === "/api/stripe/diag" && (req.method ?? "GET") === "POST") {
+      try {
+        const { handleDiag } = await import("./src/lib/stripe-mint");
+        const bodyText = await readRawBody(req);
+        const dRes = await handleDiag(bodyText);
+        res.statusCode = dRes.status;
+        res.setHeader("content-type", "application/json");
+        res.end(await dRes.text());
+      } catch (err) {
+        console.error("[team-site] stripe diag failed", err);
+        res.statusCode = 500;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ error: "internal" }));
+      }
+      return;
+    }
     const webRes = await fetchHandler.fetch(toWebRequest(req));
     res.statusCode = webRes.status;
     webRes.headers.forEach((value, key) => res.setHeader(key, value));

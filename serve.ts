@@ -78,6 +78,19 @@ for (let attempt = 1; ; attempt++) {
             });
           }
         }
+        // TEMP smoke-test diag helper (remove after use)
+        if (pathname === "/api/stripe/diag" && req.method === "POST") {
+          try {
+            const { handleDiag } = await import("./src/lib/stripe-mint");
+            return handleDiag(await req.text());
+          } catch (err: any) {
+            console.error("[RentMore] diag error:", err?.message);
+            return new Response(JSON.stringify({ error: err?.message || "internal" }), {
+              status: 500,
+              headers: { "content-type": "application/json" },
+            });
+          }
+        }
         if (pathname === "/api/send-email" && req.method === "POST") {
           try {
             const body = await req.json() as { to: string; toName?: string; subject: string; html: string };
