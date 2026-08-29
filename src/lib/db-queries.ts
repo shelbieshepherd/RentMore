@@ -2,6 +2,7 @@
 // All DB access goes through createServerFn handlers; never call sql() directly from client code.
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
+import { requireCompanyAuth, assertCompanyOwner, resolveAuthCompany, DEMO_COMPANY_ID } from "./server-auth";
 import { randomBytes } from "node:crypto";
 import { guestTotalCents, pmNetCents, stripeFeeCents } from "./fees";
 import {
@@ -40,7 +41,13 @@ export const authenticateUser = createServerFn()
 
 export const fetchUserById = createServerFn()
   .validator((data: { id: string }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, request }) => {
+    // SECURITY: a caller may only read a user whose company they belong to
+    // (covers the session-restore self-lookup and same-company teammate lookups).
+    await assertCompanyOwner(request, await (async () => {
+      const r = await sql()`SELECT company_id FROM users WHERE id = ${data.id}::uuid LIMIT 1`;
+      return r.length ? String(r[0].company_id) : null;
+    })());
     const rows = await sql()`
       SELECT id, company_id, email, name, role, email_verified
       FROM users WHERE id = ${data.id}::uuid
@@ -50,6 +57,7 @@ export const fetchUserById = createServerFn()
   });
 
 export const fetchUsersByCompany = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -62,6 +70,7 @@ export const fetchUsersByCompany = createServerFn()
 
 // Plan management
 export const fetchCompanyPlan = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -71,6 +80,7 @@ export const fetchCompanyPlan = createServerFn()
   });
 
 export const updateCompanySubscription = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; subscriptionTier: string }) => data)
   .handler(async ({ data }) => {
     await sql()`
@@ -84,6 +94,7 @@ const PAID_TIERS = new Set(["starter", "growth", "pro", "enterprise"]);
 // Active = demo company (exempt) OR paid tier (starter/growth/pro/enterprise,
 // not a "_pending" marker) with a non-expired subscription_expires_at.
 export const fetchSubscriptionStatus = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     if (data.companyId === DEFAULT_COMPANY_ID) {
@@ -113,6 +124,7 @@ export const fetchSubscriptionStatus = createServerFn()
 // in their Stripe dashboard; this fn is also the manual reconcile path
 // (call it with a known-good session id to flip a company to paid).
 export const markCompanyPaid = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; tier: string; sessionId: string }) => data)
   .handler(async ({ data }) => {
     if (data.companyId === DEFAULT_COMPANY_ID) {
@@ -259,6 +271,7 @@ export const queueVerificationEmail = createServerFn()
   });
 
 export const insertUser = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; email: string; password: string; name: string; role: string }) => data)
   .handler(async ({ data }) => {
     const email = data.email.trim().toLowerCase();
@@ -301,6 +314,7 @@ export const insertUser = createServerFn()
     return rows[0];
   });
 export const updateUser = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: {
     companyId: string; id: string;
     name?: string; email?: string; role?: string; password?: string;
@@ -332,6 +346,7 @@ export const updateUser = createServerFn()
     return rows[0];
   });
 export const deleteUser = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; id: string }) => data)
   .handler(async ({ data }) => {
     // Hard delete: no FK constraints reference users (verified in schema.sql —
@@ -438,6 +453,7 @@ export const resetPassword = createServerFn()
 
 // ── Properties ──
 export const fetchProperties = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -451,6 +467,7 @@ export const fetchProperties = createServerFn()
   });
 
 export const insertProperty = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: {
     companyId: string; name: string; address: string; type: string;
     monthlyRent: number; deposit: number; status: string; ownerId: string;
@@ -486,6 +503,7 @@ export const insertProperty = createServerFn()
 
 // ── Bookings ──
 export const fetchBookings = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -500,6 +518,7 @@ export const fetchBookings = createServerFn()
   });
 
 export const insertBooking = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; propertyId: string; guestName: string; guestEmail: string; guestPhone?: string; guestAddress?: string; startDate: string; endDate: string; nightlyRate: number; status: string; totalAmount: number; source: string; commissionRate: number; createdBy: string; cleaningFee?: number; linenFee?: number; taxAmount?: number }) => data)
   .handler(async ({ data }) => {
     await assertSubscriptionActive(data.companyId);
@@ -522,7 +541,12 @@ export const insertBooking = createServerFn()
 
 export const updateBookingDB = createServerFn()
   .validator((data: { bookingId: string; updates: Record<string, unknown> }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, request }) => {
+    // SECURITY: only the company that owns the booking may update it.
+    await assertCompanyOwner(request as Request | undefined, await (async () => {
+      const r = await sql()`SELECT company_id FROM bookings WHERE id = ${data.bookingId}::uuid LIMIT 1`;
+      return r.length ? String(r[0].company_id) : null;
+    })());
     const { bookingId, updates } = data;
     if (!Object.keys(updates).length) return;
     const sets: string[] = [];
@@ -542,6 +566,7 @@ export const updateBookingDB = createServerFn()
 
 // ── Tenants ──
 export const fetchTenants = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -554,6 +579,7 @@ export const fetchTenants = createServerFn()
   });
 
 export const insertTenant = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; propertyId: string; name: string; email: string; phone: string; address?: string; leaseStart: string; leaseEnd: string; monthlyRent: number; deposit: number }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -566,6 +592,7 @@ export const insertTenant = createServerFn()
 
 // ── Payments ──
 export const fetchPayments = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -578,6 +605,7 @@ export const fetchPayments = createServerFn()
   });
 
 export const insertPayment = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; bookingId?: string; tenantId?: string; propertyId: string; paymentType: string; method: string; amountCents: number; description: string; status: string; ownerId?: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -642,6 +670,7 @@ async function computePayoutStatements(companyId: string, periodStart: string, p
 // Persist a computed batch: replaces previous calculated/pending rows for the
 // company+period (paid rows are kept — they're part of the books).
 export const generatePayoutStatements = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; periodStart: string; periodEnd: string }) => data)
   .handler(async ({ data }) => {
     const statements = await computePayoutStatements(data.companyId, data.periodStart, data.periodEnd);
@@ -665,6 +694,7 @@ export const generatePayoutStatements = createServerFn()
   });
 
 export const fetchPayouts = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -679,6 +709,7 @@ export const fetchPayouts = createServerFn()
   });
 
 export const updatePayoutStatusDB = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; payoutId: string; status: "calculated" | "pending" }) => data)
   .handler(async ({ data }) => {
     await sql()`
@@ -692,6 +723,7 @@ export const updatePayoutStatusDB = createServerFn()
 // executed in one transaction — the INSERT pulls from the payouts row (guarded
 // by status <> 'paid') so it's atomic and idempotent without cross-query values.
 export const recordPayoutPaid = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; payoutId: string }) => data)
   .handler(async ({ data }) => {
     const [rows, paymentRows, _updated] = await sql().transaction((tx) => [
@@ -729,6 +761,7 @@ export const recordPayoutPaid = createServerFn()
 // Demo company stays on the mock path: never touches the real Stripe API.
 
 export const createConnectAccount = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     if (data.companyId === DEFAULT_COMPANY_ID) {
@@ -759,8 +792,18 @@ export const createConnectAccount = createServerFn()
 
 export const getOnboardingLink = createServerFn()
   .validator((data: { accountId: string }) => data)
-  .handler(async ({ data }) => {
-    if (data.accountId === "acct_demo_mock") return { url: null, mock: true };
+  .handler(async ({ data, request }) => {
+    // SECURITY: only the company that owns the connect account may fetch its
+    // onboarding link (demo mock only for demo-company users).
+    if (data.accountId === "acct_demo_mock") {
+      const auth = await resolveAuthCompany(request as Request | undefined);
+      if (!auth || auth.companyId !== DEMO_COMPANY_ID) throw new Error("Forbidden");
+      return { url: null, mock: true };
+    }
+    await assertCompanyOwner(request as Request | undefined, await (async () => {
+      const r = await sql()`SELECT id FROM companies WHERE stripe_connect_account_id = ${data.accountId} LIMIT 1`;
+      return r.length ? String(r[0].id) : null;
+    })());
     const { getOnboardingLink: makeLink } = await import("~/lib/stripe");
     const link = await makeLink({
       accountId: data.accountId,
@@ -771,6 +814,7 @@ export const getOnboardingLink = createServerFn()
   });
 
 export const setConnectOnboardingComplete = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     if (data.companyId === DEFAULT_COMPANY_ID) return { success: true };
@@ -797,6 +841,10 @@ export const setConnectOnboardingComplete = createServerFn()
     return { success: true, accountId: acctId };
   });
 
+// fetchConnectStatus deliberately has NO auth middleware: it is called by the
+// PUBLIC guest portal (anonymous guest) to determine whether online payment is
+// available for a reservation. It only exposes a low-sensitivity onboarding
+// flag, which the guest portal legitimately needs.
 export const fetchConnectStatus = createServerFn()
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
@@ -905,6 +953,7 @@ export const fetchBookingByReservationNumber = createServerFn()
 
 // ── Maintenance ──
 export const fetchMaintenanceRequests = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -917,6 +966,7 @@ export const fetchMaintenanceRequests = createServerFn()
   });
 
 export const insertMaintenanceRequest = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; propertyId: string; title: string; description: string; priority: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -930,7 +980,12 @@ export const insertMaintenanceRequest = createServerFn()
 // ── updateProperty (dynamic update) ──
 export const updatePropertyDB = createServerFn()
   .validator((data: { propertyId: string; updates: Record<string, unknown> }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, request }) => {
+    // SECURITY: only the company that owns the property may update it.
+    await assertCompanyOwner(request as Request | undefined, await (async () => {
+      const r = await sql()`SELECT company_id FROM properties WHERE id = ${data.propertyId}::uuid LIMIT 1`;
+      return r.length ? String(r[0].company_id) : null;
+    })());
     const { propertyId, updates } = data;
     if (!Object.keys(updates).length) return;
     const setClauses: string[] = [];
@@ -950,7 +1005,12 @@ export const updatePropertyDB = createServerFn()
 // ── updatePaymentStatus ──
 export const updatePaymentStatusDB = createServerFn()
   .validator((data: { paymentId: string; status: string }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, request }) => {
+    // SECURITY: only the company that owns the payment may update it.
+    await assertCompanyOwner(request as Request | undefined, await (async () => {
+      const r = await sql()`SELECT company_id FROM payments WHERE id = ${data.paymentId}::uuid LIMIT 1`;
+      return r.length ? String(r[0].company_id) : null;
+    })());
     await sql()`
       UPDATE payments SET status = ${data.status} WHERE id = ${data.paymentId}::uuid
     `;
@@ -959,7 +1019,12 @@ export const updatePaymentStatusDB = createServerFn()
 // ── updateMaintenanceRequest ──
 export const updateMaintenanceRequestDB = createServerFn()
   .validator((data: { requestId: string; updates: Record<string, unknown> }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, request }) => {
+    // SECURITY: only the company that owns the maintenance request may update it.
+    await assertCompanyOwner(request as Request | undefined, await (async () => {
+      const r = await sql()`SELECT company_id FROM maintenance_requests WHERE id = ${data.requestId}::uuid LIMIT 1`;
+      return r.length ? String(r[0].company_id) : null;
+    })());
     const { requestId, updates } = data;
     if (!Object.keys(updates).length) return;
     const setClauses: string[] = [];
@@ -979,6 +1044,7 @@ export const updateMaintenanceRequestDB = createServerFn()
 
 // ── Owners ──
 export const fetchOwners = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -990,6 +1056,7 @@ export const fetchOwners = createServerFn()
   });
 
 export const insertOwner = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; name: string; id?: string; email?: string; phone?: string; bankName?: string; routingNumber?: string; accountNumber?: string; payoutMethod?: string }) => data)
   .handler(async ({ data }) => {
     // Optional client-provided id: the optimistic store entry and the DB row must
@@ -1007,6 +1074,7 @@ export const insertOwner = createServerFn()
   });
 
 export const updateOwner = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; ownerId: string; updates: Record<string, unknown> }) => data)
   .handler(async ({ data }) => {
     const { ownerId, updates } = data;
@@ -1030,6 +1098,7 @@ export const updateOwner = createServerFn()
   });
 
 export const deleteOwnerDB = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; ownerId: string }) => data)
   .handler(async ({ data }) => {
     // Financial integrity: an owner with recorded payout history cannot be
@@ -1055,6 +1124,7 @@ export const deleteOwnerDB = createServerFn()
 // never transmits it and never touches owner funds. Reads the persisted batch
 // (calculated + pending ACH rows) so the file matches what's on screen.
 export const generateAchListExport = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -1092,6 +1162,7 @@ export const generateAchListExport = createServerFn()
 
 // ── Payment Methods ──
 export const fetchPaymentMethods = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -1104,6 +1175,7 @@ export const fetchPaymentMethods = createServerFn()
   });
 
 export const insertPaymentMethod = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; propertyId?: string; bookingId?: string; methodType: string; label?: string; cardLast4?: string; cardExpiry?: string; cardBrand?: string; bankName?: string; accountLast4?: string; routingLast4?: string; isDefault?: boolean }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -1116,7 +1188,12 @@ export const insertPaymentMethod = createServerFn()
 
 export const deletePaymentMethod = createServerFn()
   .validator((data: { methodId: string }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, request }) => {
+    // SECURITY: only the company that owns the payment method may delete it.
+    await assertCompanyOwner(request as Request | undefined, await (async () => {
+      const r = await sql()`SELECT company_id FROM payment_methods WHERE id = ${data.methodId}::uuid LIMIT 1`;
+      return r.length ? String(r[0].company_id) : null;
+    })());
     await sql()`
       DELETE FROM payment_methods WHERE id = ${data.methodId}::uuid
     `;
@@ -1140,6 +1217,7 @@ export const deletePaymentMethod = createServerFn()
  * saveTokenizedPaymentMethod). Returns a redirect URL (or a mock for demo).
  */
 export const createSetupCheckout = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: {
     companyId: string;
     bookingId?: string;
@@ -1249,6 +1327,7 @@ export const createSetupCheckout = createServerFn()
  * completes the "keep on file" setup flow. Idempotent on stripe_pm_id.
  */
 export const saveTokenizedPaymentMethod = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: {
     companyId: string;
     propertyId?: string;
@@ -1285,6 +1364,7 @@ export const saveTokenizedPaymentMethod = createServerFn()
  * The guest pays amount + convenience fee; RentMore $0; PM nets amount + residual.
  */
 export const createOnDemandCharge = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: {
     companyId: string;
     bookingId: string;
@@ -1379,6 +1459,7 @@ export const createOnDemandCharge = createServerFn()
 
 // ── Leads ──
 export const fetchLeads = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -1391,6 +1472,7 @@ export const fetchLeads = createServerFn()
   });
 
 export const insertLead = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: {
     companyId: string; name: string; email?: string; phone?: string; source?: string;
     stage: string; propertyId?: string; value?: number; notes?: string; date?: string;
@@ -1409,6 +1491,7 @@ export const insertLead = createServerFn()
   });
 
 export const updateLeadDB = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; leadId: string; updates: Record<string, unknown> }) => data)
   .handler(async ({ data }) => {
     const { companyId, leadId, updates } = data;
@@ -1432,6 +1515,7 @@ export const updateLeadDB = createServerFn()
   });
 
 export const deleteLead = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; leadId: string }) => data)
   .handler(async ({ data }) => {
     await sql()`DELETE FROM leads WHERE id = ${data.leadId}::uuid AND company_id = ${data.companyId}::uuid`;
@@ -1439,6 +1523,7 @@ export const deleteLead = createServerFn()
 
 // ── Vendors ──
 export const fetchVendors = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`SELECT * FROM vendor_contacts WHERE company_id = ${data.companyId}::uuid ORDER BY created_at DESC`;
@@ -1452,6 +1537,7 @@ export const fetchVendors = createServerFn()
   });
 
 export const insertVendor = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; name: string; company?: string; email?: string; phone?: string; serviceTypes?: string[]; achInfo?: { bankName?: string; routingNumber?: string; accountNumber?: string }; mailingAddress?: { street?: string; city?: string; state?: string; zip?: string }; notes?: string }) => data)
   .handler(async ({ data }) => {
     const { achInfo, mailingAddress } = data;
@@ -1466,6 +1552,7 @@ export const insertVendor = createServerFn()
   });
 
 export const updateVendorDB = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; vendorId: string; updates: Record<string, unknown> }) => data)
   .handler(async ({ data }) => {
     const { vendorId, updates } = data;
@@ -1485,6 +1572,7 @@ export const updateVendorDB = createServerFn()
   });
 
 export const deleteVendorDB = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; vendorId: string }) => data)
   .handler(async ({ data }) => {
     await sql()`DELETE FROM vendor_contacts WHERE id = ${data.vendorId}::uuid AND company_id = ${data.companyId}::uuid`;
@@ -1492,6 +1580,7 @@ export const deleteVendorDB = createServerFn()
 
 // ── Housekeeping ──
 export const fetchHousekeeping = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`SELECT * FROM housekeeping_tasks WHERE company_id = ${data.companyId}::uuid ORDER BY due_date ASC`;
@@ -1503,6 +1592,7 @@ export const fetchHousekeeping = createServerFn()
   });
 
 export const insertHousekeepingTask = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; propertyId: string; description: string; status?: string; priority?: string; assignedTo?: string; dueDate?: string; window?: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -1515,6 +1605,7 @@ export const insertHousekeepingTask = createServerFn()
   });
 
 export const updateHousekeepingTask = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; taskId: string; updates: Record<string, unknown> }) => data)
   .handler(async ({ data }) => {
     const { taskId, updates } = data;
@@ -1535,6 +1626,7 @@ export const updateHousekeepingTask = createServerFn()
   });
 
 export const deleteHousekeepingTask = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; taskId: string }) => data)
   .handler(async ({ data }) => {
     await sql()`DELETE FROM housekeeping_tasks WHERE id = ${data.taskId}::uuid AND company_id = ${data.companyId}::uuid`;
@@ -1542,6 +1634,7 @@ export const deleteHousekeepingTask = createServerFn()
 
 // ── Calendar blocks ──
 export const fetchCalendarBlocks = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`SELECT * FROM calendar_blocks WHERE company_id = ${data.companyId}::uuid ORDER BY start_date ASC`;
@@ -1553,6 +1646,7 @@ export const fetchCalendarBlocks = createServerFn()
   });
 
 export const insertCalendarBlock = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; propertyId: string; startDate: string; endDate: string; type?: string; title?: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -1564,6 +1658,7 @@ export const insertCalendarBlock = createServerFn()
   });
 
 export const deleteCalendarBlock = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; blockId: string }) => data)
   .handler(async ({ data }) => {
     await sql()`DELETE FROM calendar_blocks WHERE id = ${data.blockId}::uuid AND company_id = ${data.companyId}::uuid`;
@@ -1571,6 +1666,7 @@ export const deleteCalendarBlock = createServerFn()
 
 // ── Documents ──
 export const fetchDocuments = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`SELECT * FROM documents WHERE company_id = ${data.companyId}::uuid ORDER BY created_at DESC`;
@@ -1582,6 +1678,7 @@ export const fetchDocuments = createServerFn()
   });
 
 export const insertDocument = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; propertyId?: string; title: string; content?: string; type?: string; status?: string; recipientName?: string; recipientEmail?: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -1594,6 +1691,7 @@ export const insertDocument = createServerFn()
   });
 
 export const updateDocumentDB = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; documentId: string; updates: Record<string, unknown> }) => data)
   .handler(async ({ data }) => {
     const { documentId, updates } = data;
@@ -1613,6 +1711,7 @@ export const updateDocumentDB = createServerFn()
   });
 
 export const deleteDocumentDB = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; documentId: string }) => data)
   .handler(async ({ data }) => {
     await sql()`DELETE FROM documents WHERE id = ${data.documentId}::uuid AND company_id = ${data.companyId}::uuid`;
@@ -1637,6 +1736,7 @@ function uuidOrNull(x: string | null | undefined): string | null {
 
 // ── Tax settings ──
 export const fetchTaxRate = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
     const rows = await sql()`
@@ -1650,6 +1750,7 @@ export const fetchTaxRate = createServerFn()
   });
 
 export const upsertTaxRate = createServerFn()
+  .middleware([requireCompanyAuth])
   .validator((data: { companyId: string; rate: number }) => data)
   .handler(async ({ data }) => {
     await sql()`
