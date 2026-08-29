@@ -112,5 +112,41 @@ export async function handleDiag(bodyText: string): Promise<Response> {
       live: ev.livemode,
     }));
   } catch (e: any) { out.recentSetupEvents_error = e?.message; }
+
+  // Connected-account context: events live on the connected account, not platform.
+  const ACCT = "acct_1U4302PVgmdzYglg";
+  try {
+    const cEvents = await stripe().events.list({
+      type: "setup_intent.succeeded",
+      created: { gte: Math.floor(Date.now() / 1000) - 6 * 3600 },
+      limit: 20,
+    }, { stripeAccount: ACCT });
+    out.connectedSetupEvents = cEvents.data.map((ev) => ({
+      id: ev.id, created: new Date(ev.created * 1000).toISOString(),
+      setupIntentId: (ev.data?.object as any)?.id ?? null,
+      customer: (ev.data?.object as any)?.customer ?? null,
+      metadata: (ev.data?.object as any)?.metadata ?? null,
+      livemode: ev.livemode,
+    }));
+  } catch (e: any) { out.connectedSetupEvents_error = e?.message; }
+  try {
+    const acctEps = await stripe().webhookEndpoints.list({ limit: 20 }, { stripeAccount: ACCT });
+    out.connectedWebhookEndpoints = acctEps.data.map((e) => ({
+      id: e.id, status: e.status, url: e.url,
+      subscribed: Array.isArray(e.enabled_events) ? e.enabled_events : ["*"],
+    }));
+  } catch (e: any) { out.connectedWebhookEndpoints_error = e?.message; }
+  try {
+    const sis = await stripe().setupIntents.list({
+      limit: 20,
+      created: { gte: Math.floor(Date.now() / 1000) - 6 * 3600 },
+    }, { stripeAccount: ACCT });
+    out.connectedRecentSetupIntents = sis.data.map((s) => ({
+      id: s.id, status: s.status,
+      customer: s.customer, payment_method: s.payment_method,
+      metadata: s.metadata,
+      created: new Date(s.created * 1000).toISOString(),
+    }));
+  } catch (e: any) { out.connectedSetupIntents_error = e?.message; }
   return json(out);
 }
