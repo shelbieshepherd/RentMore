@@ -33,7 +33,7 @@ export async function handleMint(bodyText: string): Promise<Response> {
     booking_id: bookingId,
   };
   if (body.propertyId) meta.property_id = body.propertyId;
-  const returnBase = `${SITE_BASE}/bookings/${encodeURIComponent(bookingId)}`;
+  const returnBase = `${SITE_BASE}/guest/${encodeURIComponent(bookingId)}`;
   const acctId = company.stripe_connect_account_id;
   const email = (body.guestEmail as string | undefined)?.trim() || undefined;
   let customerId: string | undefined;

@@ -360,11 +360,17 @@ function PaymentCard({
   const [notice, setNotice] = useState("");
   const fmtDate = (d: string) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
 
-  // Return banners from hosted Checkout (?checkout=success | cancelled)
+  // Return banners from hosted Checkout / on-demand card-save.
+  // ?checkout=success|cancelled  → payment redirect
+  // ?ondemand=method-saved|cancelled → "keep a card on file" (collect) redirect
+  // SECURITY (2026-08-29): both flows only ever land the guest on this PUBLIC
+  // portal (never the internal /bookings dashboard — see createSetupCheckout).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") === "success") setNotice("✅ Payment completed — thank you!");
     else if (params.get("checkout") === "cancelled") setNotice("Payment wasn't completed — you can try again below.");
+    else if (params.get("ondemand") === "method-saved") setNotice("✅ Your payment method was saved — thanks! We'll only charge what's owed for your stay.");
+    else if (params.get("ondemand") === "cancelled") setNotice("No card was saved — you can retry using the secure link from your host.");
   }, []);
 
   const startPayment = async (target: "deposit" | "balance") => {

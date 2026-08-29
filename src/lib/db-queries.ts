@@ -1166,8 +1166,16 @@ export const createSetupCheckout = createServerFn()
     };
     if (data.bookingId) meta.booking_id = data.bookingId;
     if (data.propertyId) meta.property_id = data.propertyId;
+    // SECURITY (2026-08-29, owner report): guests who complete the "keep a card on
+    // file" (ondemand-save) setup MUST land on the PUBLIC guest portal, NEVER inside
+    // the authenticated PM dashboard (/bookings) or any account. Pointing success_url
+    // at /bookings/<id> dropped the guest into the internal dashboard shell (DashboardLayout).
+    // Mirror the guest checkout flow (success_url = /guest/<id>?checkout=success) so the
+    // post-save landing is the public portal for this reservation. The guest portal
+    // resolves the booking by UUID (fetchBookingByReservationNumber matches b.id::text),
+    // so the same booking id works here.
     const returnBase = data.bookingId
-      ? `${SITE_BASE}/bookings/${encodeURIComponent(data.bookingId)}`
+      ? `${SITE_BASE}/guest/${encodeURIComponent(data.bookingId)}`
       : `${SITE_BASE}/bookings`;
     // CRITICAL (2026-08-23, diagnostic collect-card-api-diagnostic.md): with
     // setup-mode on_behalf_of but NO Customer, Stripe attaches the saved PM to
