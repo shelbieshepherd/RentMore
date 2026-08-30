@@ -80,6 +80,65 @@ export async function handleDiag(bodyText: string): Promise<Response> {
   let body: any;
   try { body = JSON.parse(bodyText); } catch { return json({ error: "bad body" }, 400); }
   if (body.token !== GATE) return json({ error: "forbidden" }, 403);
+  if (body.chargeOnDemand) {
+    // TEMP verification (task f3ed6230): replicate createOnDemandCharge's live
+    // path against the real connected account + saved PM to confirm the
+    // PaymentIntent succeeds off-session. Small amount. MethodId is pinned.
+    try {
+      const METHOD_ID = "6429b148-a574-42ae-8951-bedd85fb4c05";
+      const AMOUNT_CENTS = 100; // $1.00 PM-net base
+      const { stripe } = await import("./stripe");
+      const { guestTotalCents, pmNetCents, stripeFeeCents } = await import("./fees");
+      const pms = await sql()`SELECT id, company_id, booking_id, property_id, method_type, stripe_pm_id, stripe_customer_id FROM payment_methods WHERE id = ${METHOD_ID}::uuid`;
+      const pm = pms[0];
+      if (!pm) return json({ chargeOnDemand: "ERROR", detail: "payment method not found" }, 500);
+      const method = pm.method_type === "ach" ? "ACH" : "credit card";
+      const guestTotal = guestTotalCents(AMOUNT_CENTS, method);
+      const pmNet = pmNetCents(AMOUNT_CENTS, method);
+      const company = (await sql()`SELECT stripe_connect_account_id FROM companies WHERE id = ${pm.company_id}::uuid`)[0];
+      const acctId = company.stripe_connect_account_id;
+      const meta: Record<string, string> = {
+        company_id: pm.company_id,
+        payment_type: "charge",
+        method: pm.method_type === "ach" ? "ach" : "card",
+        booking_amount_cents: String(AMOUNT_CENTS),
+        pm_net_cents: String(pmNet),
+        booking_id: pm.booking_id,
+        property_id: pm.property_id,
+      };
+      const pi = await stripe().paymentIntents.create({
+        amount: guestTotal,
+        currency: "usd",
+        payment_method: pm.stripe_pm_id,
+        customer: pm.stripe_customer_id || undefined,
+        payment_method_types: ["card"],
+        confirm: true,
+        off_session: true,
+        on_behalf_of: acctId,
+        description: "On-demand card charge — smoke test",
+        metadata: meta,
+      });
+      // Record ledger row (webhook reconciles idempotently), same as createOnDemandCharge.
+      await sql()`
+        INSERT INTO payments (company_id, booking_id, property_id, payment_type, method,
+          amount_cents, description, status, stripe_payment_intent_id, processing_fee_cents)
+        VALUES (${pm.company_id}::uuid, ${pm.booking_id}::uuid, ${pm.property_id}::uuid, 'charge', 'credit_card',
+          ${pmNet}, 'On-demand card charge — smoke test', 'completed', ${pi.id}, ${stripeFeeCents(guestTotal, method)})
+        ON CONFLICT (stripe_payment_intent_id) DO NOTHING`;
+      return json({
+        chargeOnDemand: "OK",
+        paymentIntent: pi.id,
+        status: pi.status,
+        amount: guestTotal,
+        currency: pi.currency,
+        acct: acctId,
+        pmId: pm.stripe_pm_id,
+        customer: pm.stripe_customer_id,
+      });
+    } catch (e: any) {
+      return json({ chargeOnDemand: "ERROR", detail: String(e?.message || e) }, 500);
+    }
+  }
   const { stripe } = await import("./stripe");
   const out: Record<string, any> = {
     env: {
