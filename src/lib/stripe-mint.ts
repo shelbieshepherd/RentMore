@@ -80,23 +80,6 @@ export async function handleDiag(bodyText: string): Promise<Response> {
   let body: any;
   try { body = JSON.parse(bodyText); } catch { return json({ error: "bad body" }, 400); }
   if (body.token !== GATE) return json({ error: "forbidden" }, 403);
-  if (body.runSetup) {
-    // TEMP verification (task 08514f41): run the REAL fixed handleSetupIntent
-    // against the actual connected-account SetupIntent to prove the retrieve fix
-    // persists a payment_methods row. Uses seti_1U9jK5PVgmdzYglgqo89zFyF.
-    try {
-      const { stripe } = await import("./stripe");
-      const { handleSetupIntent } = await import("./stripe-webhook");
-      const ACCT = "acct_1U4302PVgmdzYglg";
-      const setiId = body.setiId || "seti_1U9jK5PVgmdzYglgqo89zFyF";
-      const se = await stripe().setupIntents.retrieve(setiId, undefined, { stripeAccount: ACCT });
-      await handleSetupIntent(se as any);
-      const rows = await sql()`SELECT id, booking_id, method_type, card_last4, stripe_pm_id, stripe_customer_id FROM payment_methods WHERE booking_id = ${EXPECT_BOOKING}::uuid OR stripe_pm_id = ${(se as any).payment_method}::text ORDER BY created_at DESC`;
-      return json({ runSetup: "OK", setupIntent: se.id, status: se.status, payment_method: (se as any).payment_method, customer: (se as any).customer, persisted: JSON.stringify(rows) });
-    } catch (e: any) {
-      return json({ runSetup: "ERROR", detail: String(e?.message || e) }, 500);
-    }
-  }
   const { stripe } = await import("./stripe");
   const out: Record<string, any> = {
     env: {
