@@ -151,7 +151,7 @@ async function handleDispute(
  * on that booking's detail page and can be charged on-demand. Idempotent on
  * stripe_pm_id (unique index) so Stripe retries never double-insert.
  */
-async function handleSetupIntent(se: Stripe.SetupIntent): Promise<void> {
+export async function handleSetupIntent(se: Stripe.SetupIntent): Promise<void> {
   const meta = metaOf(se);
   console.log(`[stripe-webhook] setup_intent.succeeded id=${se.id} acct=${se.on_behalf_of ?? se.account ?? "?"} meta=${JSON.stringify(meta)}`);
   // Only our PM-side collect flow carries company_id (+ ondemand-save flag).
