@@ -1,6 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { seoHead } from "~/lib/public-page";
 
 export const Route = createFileRoute("/pitch")({
+  head: () =>
+    seoHead(
+      "RentMore — Property Management for Short-Term and Long-Term Rentals",
+      "One platform for property managers running 5–50 units across short-term and long-term rentals: online payments, guest & tenant management, maintenance, owner payouts, and reporting. Zero transaction fees.",
+      "/pitch",
+    ),
   component: PitchPage,
 });
 
@@ -248,11 +255,37 @@ function PitchPage() {
         </div>
       </section>
 
+      {/* ── Guides ── */}
+      <section className="py-16">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Guides for property managers</h2>
+            <p className="text-gray-600 max-w-xl mx-auto">
+              Practical comparisons for choosing rental software across the short-term and long-term sides of your portfolio.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { href: "/property-management-software", title: "Property Management Software", desc: "Running short-term and long-term rentals in one tool — the feature set that holds both worlds." },
+              { href: "/short-term-rental-software", title: "Short-Term Rental Software", desc: "What actually saves time for managers with many short-term units, and how to evaluate vendors." },
+              { href: "/vacation-rental-management-software", title: "Vacation Rental Management", desc: "The features that matter day-to-day — payments, guests, maintenance, reservations, owner payouts." },
+            ].map((g) => (
+              <a key={g.href} href={g.href} className="bg-gray-50 rounded-xl p-6 border border-gray-100 hover:shadow-md transition-shadow no-underline">
+                <h3 className="text-base font-semibold text-gray-900 mb-2">{g.title}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{g.desc}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Footer ── */}
       <footer className="border-t border-gray-100 py-8">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="text-sm text-gray-400">© {new Date().getFullYear()} RentMore. Property management software for short-term and long-term rentals.</span>
           <div className="flex items-center gap-6">
+            <a href="/property-management-software" className="text-sm text-gray-400 hover:text-gray-600">Guides</a>
+            <a href="/pricing" className="text-sm text-gray-400 hover:text-gray-600">Pricing</a>
             <a href="/login" className="text-sm text-gray-400 hover:text-gray-600">Log in</a>
             <a href="/signup" className="text-sm text-gray-400 hover:text-gray-600">Sign up</a>
           </div>

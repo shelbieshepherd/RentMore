@@ -1,17 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PublicShell, useSeo, CtaButton, BRAND } from "~/lib/public-page";
+import { PublicShell, useSeo, CtaButton, BRAND, seoHead } from "~/lib/public-page";
 
 export const Route = createFileRoute("/short-term-rental-software")({
-  head: () => ({
-    meta: [
-      { title: "Short-Term Rental Software for Property Managers | RentMore" },
-      {
-        name: "description",
-        content:
-          "A practical guide to short-term rental software for property managers: what to compare, which features actually save time, and how to evaluate tools before you sign up.",
-      },
-    ],
-  }),
+  head: () =>
+    seoHead(
+      "Short-Term Rental Software for Property Managers | RentMore",
+      "A practical guide to short-term rental software for property managers: what to compare, which features actually save time, and how to evaluate tools before you sign up.",
+      "/short-term-rental-software",
+    ),
   component: ShortTermArticle,
 });
 

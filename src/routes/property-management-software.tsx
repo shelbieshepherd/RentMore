@@ -1,17 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PublicShell, useSeo, CtaButton, BRAND } from "~/lib/public-page";
+import { PublicShell, useSeo, CtaButton, BRAND, seoHead } from "~/lib/public-page";
 
 export const Route = createFileRoute("/property-management-software")({
-  head: () => ({
-    meta: [
-      { title: "Property Management Software for Short-Term and Long-Term Rentals | RentMore" },
-      {
-        name: "description",
-        content:
-          "How to choose property management software when you run both short-term and long-term rentals — and why a single platform for leases, reservations, payments, and owner payouts beats juggling two tools.",
-      },
-    ],
-  }),
+  head: () =>
+    seoHead(
+      "Property Management Software for Short-Term and Long-Term Rentals | RentMore",
+      "How to choose property management software when you run both short-term and long-term rentals — and why a single platform for leases, reservations, payments, and owner payouts beats juggling two tools.",
+      "/property-management-software",
+    ),
   component: MixedPortfolioArticle,
 });
 

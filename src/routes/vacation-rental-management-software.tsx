@@ -1,17 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PublicShell, useSeo, CtaButton, BRAND } from "~/lib/public-page";
+import { PublicShell, useSeo, CtaButton, BRAND, seoHead } from "~/lib/public-page";
 
 export const Route = createFileRoute("/vacation-rental-management-software")({
-  head: () => ({
-    meta: [
-      { title: "Vacation Rental Management Software: What to Look For | RentMore" },
-      {
-        name: "description",
-        content:
-          "A practical guide to vacation rental management software: the features that matter for property managers — online payments, guest management, maintenance, reservations, owner payouts, and reporting.",
-      },
-    ],
-  }),
+  head: () =>
+    seoHead(
+      "Vacation Rental Management Software: What to Look For | RentMore",
+      "A practical guide to vacation rental management software: the features that matter for property managers — online payments, guest management, maintenance, reservations, owner payouts, and reporting.",
+      "/vacation-rental-management-software",
+    ),
   component: VacationRentalArticle,
 });
 
