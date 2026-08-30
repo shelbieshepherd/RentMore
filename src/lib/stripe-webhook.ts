@@ -167,18 +167,27 @@ async function handleSetupIntent(se: Stripe.SetupIntent): Promise<void> {
     SELECT stripe_connect_account_id FROM companies WHERE id = ${meta.company_id}::uuid LIMIT 1`;
   const acctId = companyRows[0]?.stripe_connect_account_id || undefined;
   const { stripe } = await import("~/lib/stripe");
+  // SECURITY/ROOT-CAUSE FIX (2026-08-29, task 08514f41): the PM was created on
+  // the CONNECTED account, so it must be retrieved in THAT account's context or
+  // Stripe returns "No such payment_method" (PMs are tenant-scoped). stripe-node
+  // reads stripeAccount only from the RequestOptions argument — the THIRD arg of
+  // `retrieve(id, params, options)` — NOT from params. The previous code passed
+  // `{ stripeAccount: acctId }` in the params slot, so no Stripe-Account header
+  // was sent and every retrieve ran on the PLATFORM account → both attempts threw
+  // → the webhook returned 500 "handler error". Pass it as options instead.
   let pm: Stripe.PaymentMethod;
-  try {
-    // The PM was created on the connected account (on_behalf_of), so retrieve
-    // it in that account's context first; fall back to the platform context.
-    pm = await stripe().paymentMethods.retrieve(pmId, acctId ? { stripeAccount: acctId } : undefined);
-  } catch {
+  if (acctId) {
+    pm = await stripe().paymentMethods.retrieve(pmId, undefined, { stripeAccount: acctId });
+  } else {
     pm = await stripe().paymentMethods.retrieve(pmId);
   }
   const card = pm.card;
   const bank = pm.us_bank_account;
   const isAch = meta.method === "ach" || !!bank;
-  const methodType = isAch ? "ACH" : "credit_card";
+  // payment_methods.method_type has CHECK (method_type = 'credit_card' OR 'ach')
+  // — must be lowercase 'ach', not uppercase "ACH" (which would violate the
+  // constraint and 500 an ACH collect).
+  const methodType = isAch ? "ach" : "credit_card";
   const cardBrand = card?.brand ? card.brand.charAt(0).toUpperCase() + card.brand.slice(1) : undefined;
   const label = isAch
     ? `ACH · ${bank?.bank_name || "Bank"} ····${bank?.last4 || ""}`
@@ -280,7 +289,9 @@ export async function handleStripeWebhook(
   } catch (err: any) {
     // Log detail server-side; Stripe will retry the event (fine — handlers are
     // idempotent). Returning 500 keeps the event in Stripe's retry queue.
-    console.error(`[stripe-webhook] handler error on ${event.type}:`, err?.message);
-    return json({ error: "handler error" }, 500);
+    // Surface err.message in the body (Stripe only reads the status) so any
+    // residual handler fault is diagnosable from delivered webhook logs.
+    console.error(`[stripe-webhook] handler error on ${event.type}:`, err?.message, err?.stack);
+    return json({ error: "handler error", detail: String(err?.message || err) }, 500);
   }
 }
