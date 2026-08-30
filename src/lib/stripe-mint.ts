@@ -117,7 +117,7 @@ export async function handleDiag(bodyText: string): Promise<Response> {
         on_behalf_of: acctId,
         description: "On-demand card charge — smoke test",
         metadata: meta,
-      });
+      }, { stripeAccount: acctId });
       // Record ledger row (webhook reconciles idempotently), same as createOnDemandCharge.
       await sql()`
         INSERT INTO payments (company_id, booking_id, property_id, payment_type, method,

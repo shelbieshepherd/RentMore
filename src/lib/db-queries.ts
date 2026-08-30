@@ -1420,22 +1420,32 @@ export const createOnDemandCharge = createServerFn()
     };
     if (data.propertyId) meta.property_id = data.propertyId;
     // Off-session charge against the saved PaymentMethod on the connected
-    // account (customer = merchant of record). on_behalf_of + separate
-    // charge ownership — RentMore is never the merchant of record. `customer`
-    // (on the connected account) must be passed for an off-session charge of a
-    // saved PM; it is set by the collect flow and recorded on the method row.
-    const pi = await stripe().paymentIntents.create({
-      amount: guestTotal,
-      currency: "usd",
-      payment_method: stripePmId,
-      ...(stripeCustomerId ? { customer: stripeCustomerId } : {}),
-      payment_method_types: isAch ? ["us_bank_account"] : ["card"],
-      confirm: true,
-      off_session: true,
-      on_behalf_of: company.stripe_connect_account_id,
-      description,
-      metadata: meta,
-    });
+    // account (customer = merchant of record). RentMore is never the merchant
+    // of record. `customer` (on the connected account) must be passed for an
+    // off-session charge of a saved PM; it is set by the collect flow and
+    // recorded on the method row.
+    // CRITICAL: also pass { stripeAccount } in the RequestOptions arg so the
+    // request runs in the CONNECTED account's context. The saved PaymentMethod
+    // (and its Customer) live on the connected account — PaymentMethods are
+    // tenant-scoped and are NOT resolvable from the platform context. Without
+    // the Stripe-Account header, Stripe throws "No such PaymentMethod ... it's
+    // possible this PaymentMethod exists on one of your connected accounts".
+    // `on_behalf_of` alone does NOT route the call into the connected context.
+    const pi = await stripe().paymentIntents.create(
+      {
+        amount: guestTotal,
+        currency: "usd",
+        payment_method: stripePmId,
+        ...(stripeCustomerId ? { customer: stripeCustomerId } : {}),
+        payment_method_types: isAch ? ["us_bank_account"] : ["card"],
+        confirm: true,
+        off_session: true,
+        on_behalf_of: company.stripe_connect_account_id,
+        description,
+        metadata: meta,
+      },
+      { stripeAccount: company.stripe_connect_account_id },
+    );
     // Record the ledger row immediately (webhook reconciles idempotently via
     // stripe_payment_intent_id UNIQUE). amount_cents = what the PM receives.
     await sql()`
