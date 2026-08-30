@@ -114,7 +114,6 @@ export async function handleDiag(bodyText: string): Promise<Response> {
         payment_method_types: ["card"],
         confirm: true,
         off_session: true,
-        on_behalf_of: acctId,
         description: "On-demand card charge — smoke test",
         metadata: meta,
       }, { stripeAccount: acctId });

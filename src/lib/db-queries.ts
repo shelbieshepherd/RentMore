@@ -1424,13 +1424,16 @@ export const createOnDemandCharge = createServerFn()
     // of record. `customer` (on the connected account) must be passed for an
     // off-session charge of a saved PM; it is set by the collect flow and
     // recorded on the method row.
-    // CRITICAL: also pass { stripeAccount } in the RequestOptions arg so the
-    // request runs in the CONNECTED account's context. The saved PaymentMethod
-    // (and its Customer) live on the connected account — PaymentMethods are
-    // tenant-scoped and are NOT resolvable from the platform context. Without
-    // the Stripe-Account header, Stripe throws "No such PaymentMethod ... it's
-    // possible this PaymentMethod exists on one of your connected accounts".
-    // `on_behalf_of` alone does NOT route the call into the connected context.
+    // CRITICAL: run the request in the CONNECTED account's context via the
+    // RequestOptions { stripeAccount } (which sends the Stripe-Account header).
+    // The saved PaymentMethod and its Customer live on the connected account —
+    // PaymentMethods are tenant-scoped and not resolvable from the platform
+    // context, so without the header Stripe throws "No such PaymentMethod ... on
+    // one of your connected accounts". Do NOT set the top-level `on_behalf_of`
+    // param when running as the connected account — Stripe rejects it with
+    // "The 'on_behalf_of' param cannot be set to your own account". Running in
+    // the connected-account context makes the connected account the merchant of
+    // record (direct-charge model), which satisfies RentMore-never-merchant.
     const pi = await stripe().paymentIntents.create(
       {
         amount: guestTotal,
@@ -1440,7 +1443,6 @@ export const createOnDemandCharge = createServerFn()
         payment_method_types: isAch ? ["us_bank_account"] : ["card"],
         confirm: true,
         off_session: true,
-        on_behalf_of: company.stripe_connect_account_id,
         description,
         metadata: meta,
       },
