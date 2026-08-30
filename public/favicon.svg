@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#0f3c52"/>
+  <!-- house roof -->
+  <path d="M14 34 L32 18 L50 34" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- house body -->
+  <path d="M20 32 v16 h24 v-16" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- door -->
+  <path d="M28 48 v-8 a4 4 0 0 1 8 0 v8" fill="#17a2b8"/>
+  <circle cx="34.5" cy="40" r="1.4" fill="#0f3c52"/>
+</svg>

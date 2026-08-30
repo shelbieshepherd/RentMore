@@ -41,7 +41,7 @@ function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="text-4xl mb-2">🏘️</div>
+          <img src="/favicon.svg" alt="RentMore" className="w-14 h-14 mx-auto mb-2" />
           <h1 className="text-2xl font-bold" style={{ color: "#0f3c52" }}>RentMore</h1>
           <p className="text-sm text-gray-500 mt-1">Property Management Dashboard</p>
         </div>
