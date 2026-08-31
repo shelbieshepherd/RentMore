@@ -1,20 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 96" width="400" height="96">
   <defs>
-    <style>.rm{font-family:'Inter',Arial,Helvetica,sans-serif;font-weight:700;letter-spacing:-0.5px;fill:#0f3c52}.rmsub{font-family:'Inter',Arial,Helvetica,sans-serif;font-weight:500;font-size:15px;letter-spacing:1.8px;fill:#6b7f8c}</style>
+    <style>.rm{font-family:'Inter',Arial,Helvetica,sans-serif;font-weight:700;letter-spacing:-0.5px;fill:#0f3c52}.rmsub{font-family:'Inter',Arial,Helvetica,sans-serif;font-weight:500;font-size:14px;letter-spacing:2px;fill:#6b7f8c}</style>
   </defs>
-  <!-- badge: palm on rounded teal square -->
+  <!-- badge: house + sun over roofline -->
   <rect x="6" y="6" width="84" height="84" rx="18" fill="#0f3c52"/>
-  <path d="M48 70 C46 62 45 52 46 42" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
-  <g fill="none" stroke="#ffffff" stroke-width="5.4" stroke-linecap="round">
-    <path d="M46 42 C38 38 29 40 23 47"/>
-    <path d="M46 42 C37 32 30 30 22 33"/>
-    <path d="M46 42 C45 31 45 26 45 22"/>
-    <path d="M46 42 C55 32 62 29 70 30"/>
-    <path d="M46 42 C54 39 62 41 70 46"/>
-    <path d="M46 42 C41 45 40 49 41 52"/>
+  <!-- sun rays -->
+  <g stroke="#ffcf5c" stroke-width="3" stroke-linecap="round">
+    <line x1="48" y1="14" x2="48" y2="9"/>
+    <line x1="60" y1="17" x2="64" y2="14"/>
   </g>
-  <circle cx="44" cy="40" r="3" fill="#17a2b8"/>
+  <circle cx="48" cy="17" r="5.2" fill="#ffcf5c"/>
+  <!-- roof -->
+  <path d="M22 48 L48 25 L74 48" fill="none" stroke="#ffffff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- body -->
+  <path d="M30 45 v24 h36 v-24" fill="none" stroke="#ffffff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- door -->
+  <path d="M42 69 v-12 a5 5 0 0 1 10 0 v12" fill="#17a2b8"/>
+  <circle cx="48" cy="56" r="1.6" fill="#0f3c52"/>
   <!-- wordmark -->
   <text x="114" y="56" class="rm" font-size="44">RentMore</text>
-  <text x="114" y="78" class="rmsub">VACATION &amp; SHORT-TERM RENTALS</text>
+  <text x="114" y="79" class="rmsub">VACATION RENTAL SOFTWARE</text>
 </svg>
