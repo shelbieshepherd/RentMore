@@ -2,21 +2,19 @@
   <defs>
     <style>.rm{font-family:'Inter',Arial,Helvetica,sans-serif;font-weight:700;letter-spacing:-0.5px;fill:#0f3c52}.rmsub{font-family:'Inter',Arial,Helvetica,sans-serif;font-weight:500;font-size:14px;letter-spacing:2px;fill:#6b7f8c}</style>
   </defs>
-  <!-- badge: house + sun over roofline -->
+  <!-- badge: house + KEY -->
   <rect x="6" y="6" width="84" height="84" rx="18" fill="#0f3c52"/>
-  <!-- sun rays -->
-  <g stroke="#ffcf5c" stroke-width="3" stroke-linecap="round">
-    <line x1="48" y1="14" x2="48" y2="9"/>
-    <line x1="60" y1="17" x2="64" y2="14"/>
-  </g>
-  <circle cx="48" cy="17" r="5.2" fill="#ffcf5c"/>
   <!-- roof -->
   <path d="M22 48 L48 25 L74 48" fill="none" stroke="#ffffff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
   <!-- body -->
   <path d="M30 45 v24 h36 v-24" fill="none" stroke="#ffffff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- door -->
-  <path d="M42 69 v-12 a5 5 0 0 1 10 0 v12" fill="#17a2b8"/>
-  <circle cx="48" cy="56" r="1.6" fill="#0f3c52"/>
+  <!-- KEY laid diagonally across the house (teal accent) -->
+  <g stroke="#17a2b8" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <circle cx="61" cy="43" r="4.6"/>
+    <path d="M56.8 47.9 L31.5 68"/>
+    <path d="M31.5 68 L28.5 74.6"/>
+    <path d="M39 60.5 L36 67.2"/>
+  </g>
   <!-- wordmark -->
   <text x="114" y="56" class="rm" font-size="44">RentMore</text>
   <text x="114" y="79" class="rmsub">VACATION RENTAL SOFTWARE</text>
