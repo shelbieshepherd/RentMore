@@ -117,8 +117,23 @@ function SettingsPaymentsPage() {
                   Online payments are simulated in the demo account — no Stripe connection is needed.
                   Real companies connect their own Stripe account to collect payments.
                 </p>
+                <p className="mt-2 text-xs text-gray-500">
+                  To try <span className="font-medium">real</span> card-saving in the demo, connect a
+                  real Stripe account below — you'll finish Express onboarding with Stripe, and the
+                  demo account will then collect real payments and save real cards end-to-end.
+                </p>
+                {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+                {notice && <p className="mt-2 text-sm text-green-700">{notice}</p>}
               </div>
             </div>
+            <button
+              onClick={startOrResumeOnboarding}
+              disabled={busy}
+              className="btn-primary gap-2 mt-4"
+              style={{ backgroundColor: br }}
+            >
+              {busy ? "Opening…" : "Connect a real Stripe account"}
+            </button>
           </div>
         ) : (
           <>

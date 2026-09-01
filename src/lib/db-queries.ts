@@ -758,15 +758,14 @@ export const recordPayoutPaid = createServerFn()
   });
 
 // ── Stripe Connect (Option A — separate charges, RentMore never merchant of record) ──
-// Demo company stays on the mock path: never touches the real Stripe API.
+// The DEMO company can now be wired to a REAL Stripe Connect account (owner action:
+// complete Express onboarding), so card-saving works end-to-end in the demo. Until
+// an account is created the demo stays simulated (mock paths below preserve that).
 
 export const createConnectAccount = createServerFn()
   .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
-    if (data.companyId === DEFAULT_COMPANY_ID) {
-      return { accountId: "acct_demo_mock", onboardingUrl: null, mock: true };
-    }
     const companyRows = await sql()`
       SELECT id, name, stripe_connect_account_id
       FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
@@ -817,7 +816,6 @@ export const setConnectOnboardingComplete = createServerFn()
   .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
-    if (data.companyId === DEFAULT_COMPANY_ID) return { success: true };
     const rows = await sql()`
       SELECT stripe_connect_account_id FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
     const acctId = rows[0]?.stripe_connect_account_id;
@@ -848,15 +846,19 @@ export const setConnectOnboardingComplete = createServerFn()
 export const fetchConnectStatus = createServerFn()
   .validator((data: { companyId: string }) => data)
   .handler(async ({ data }) => {
-    if (data.companyId === DEFAULT_COMPANY_ID) {
-      return { accountId: null, onboardingComplete: false, isDemo: true };
-    }
     const rows = await sql()`
       SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
       FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
     if (!rows.length) throw new Error("Company not found");
+    const acctId = rows[0].stripe_connect_account_id;
+    // DEMO company: keep the simulated-demo experience UNTIL a real Stripe
+    // Connect account is wired (owner completes Express onboarding); once wired,
+    // behave like a real company so card-saving works end-to-end in the demo.
+    if (data.companyId === DEFAULT_COMPANY_ID && !acctId) {
+      return { accountId: null, onboardingComplete: false, isDemo: true };
+    }
     return {
-      accountId: rows[0].stripe_connect_account_id || null,
+      accountId: acctId || null,
       onboardingComplete: !!rows[0].stripe_connect_onboarding_complete,
       isDemo: false,
     };
@@ -873,13 +875,16 @@ export const createCheckoutSession = createServerFn()
     // ZERO transaction fee — no application_fee_amount is ever set.
     const guestTotal = guestTotalCents(data.amountCents, method);
     const pmNet = pmNetCents(data.amountCents, method);
-    if (data.companyId === DEFAULT_COMPANY_ID) {
-      return { url: null, sessionId: `cs_demo_${Date.now()}`, mock: true, guestTotalCents: guestTotal, pmNetCents: pmNet };
-    }
     const companyRows = await sql()`
       SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
       FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
     const company = companyRows[0];
+    // DEMO company: simulated checkout UNTIL a real Connect account is wired
+    // (owner completes Express onboarding); once wired, real Stripe checkout.
+    if (data.companyId === DEFAULT_COMPANY_ID &&
+        (!company || !company.stripe_connect_account_id || !company.stripe_connect_onboarding_complete)) {
+      return { url: null, sessionId: `cs_demo_${Date.now()}`, mock: true, guestTotalCents: guestTotal, pmNetCents: pmNet };
+    }
     if (!company || !company.stripe_connect_account_id || !company.stripe_connect_onboarding_complete) {
       throw new Error("Online payments are not enabled for this company — complete Stripe onboarding first.");
     }
@@ -1226,13 +1231,17 @@ export const createSetupCheckout = createServerFn()
     method: "card" | "ach";
   }) => data)
   .handler(async ({ data }) => {
-    if (data.companyId === DEFAULT_COMPANY_ID) {
-      return { url: null, setupIntentId: `seti_demo_${Date.now()}`, mock: true };
-    }
     const companyRows = await sql()`
       SELECT stripe_connect_account_id, stripe_connect_onboarding_complete
       FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
     const company = companyRows[0];
+    // DEMO company: simulated collect link UNTIL a real Connect account is wired
+    // (owner completes Express onboarding); once wired, real Stripe setup so a
+    // card can actually be saved on the connected account.
+    if (data.companyId === DEFAULT_COMPANY_ID &&
+        (!company || !company.stripe_connect_account_id || !company.stripe_connect_onboarding_complete)) {
+      return { url: null, setupIntentId: `seti_demo_${Date.now()}`, mock: true };
+    }
     if (!company || !company.stripe_connect_account_id || !company.stripe_connect_onboarding_complete) {
       throw new Error("Online payments are not enabled for this company — complete Stripe onboarding first.");
     }
@@ -1388,10 +1397,12 @@ export const createOnDemandCharge = createServerFn()
     const stripeCustomerId = pm.stripe_customer_id || undefined;
     const description = `On-demand ${isAch ? "ACH" : "card"} charge — ${data.reason}`;
     const processingFee = stripeFeeCents(guestTotal, method);
-    // Demo company (or a saved method with no Stripe token yet): mock the
-    // charge but still record the ledger row so the reservation page
-    // demonstrably persists an on-demand payment.
-    if (data.companyId === DEFAULT_COMPANY_ID || !stripePmId) {
+    // A saved method with no Stripe token yet (e.g. demo-simulated row) can't be
+    // charged — mock the charge but still record the ledger row so the booking
+    // page demonstrably persists an on-demand payment. Once a REAL stripe_pm_id
+    // exists (incl. the demo company after the owner wires Connect), run the
+    // real charge against the connected account below.
+    if (!stripePmId) {
       const demoPiId = `pi_ondemand_demo_${Date.now()}`;
       await sql()`
         INSERT INTO payments (company_id, booking_id, property_id, payment_type, method,
