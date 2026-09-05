@@ -188,6 +188,10 @@ function SettingsPaymentsPage() {
                       ) : null}
                     </ul>
                     <p className="mt-2 text-xs text-amber-700">
+                      Stripe status: charges {status.chargesEnabled ? "enabled" : "not enabled"} · card capability{" "}
+                      {status.cardPaymentsActive ? "active" : "not active"}.
+                    </p>
+                    <p className="mt-2 text-xs text-amber-700">
                       If the list above is empty, Stripe is still reviewing your account — it becomes
                       charge-enabled automatically once review finishes (no action needed from you).
                     </p>
