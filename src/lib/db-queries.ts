@@ -2,7 +2,7 @@
 // All DB access goes through createServerFn handlers; never call sql() directly from client code.
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
-import { requireCompanyAuth, assertCompanyOwner, resolveAuthCompany, DEMO_COMPANY_ID } from "./server-auth";
+import { requireCompanyAuth, assertCompanyOwner, resolveAuthCompany, DEMO_COMPANY_ID, SEED_USER_IDS } from "./server-auth";
 import { randomBytes } from "node:crypto";
 import { guestTotalCents, pmNetCents, stripeFeeCents } from "./fees";
 import {
@@ -765,7 +765,7 @@ export const recordPayoutPaid = createServerFn()
 export const createConnectAccount = createServerFn()
   .middleware([requireCompanyAuth])
   .validator((data: { companyId: string }) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, request }) => {
     const companyRows = await sql()`
       SELECT id, name, stripe_connect_account_id
       FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
@@ -779,9 +779,37 @@ export const createConnectAccount = createServerFn()
       const link = await getOnboardingLink({ accountId: existing, refreshUrl: refresh, returnUrl: ret });
       return { accountId: existing, onboardingUrl: link.url };
     }
-    const userRows = await sql()`
-      SELECT email FROM users WHERE company_id = ${data.companyId}::uuid ORDER BY created_at LIMIT 1`;
-    const email = userRows[0]?.email || `owner+${data.companyId.slice(0, 8)}@rentmorevrs.com`;
+    // The Stripe account's contact email MUST be a real, monitored mailbox —
+    // Stripe sends all KYC/verification/action-needed correspondence there. Use
+    // the AUTHENTICATED user's own email (the person starting onboarding), fall
+    // back to the company's oldest admin, then a placeholder. Ordering by raw
+    // created_at previously grabbed a seed admin (admin@rentmore.com), which is
+    // a dead mailbox — the demo account could never complete KYC/charge-enable
+    // because every Stripe email went to a fake address. (2026-09-04, task 4981e79f)
+    // Seed users (u1..u7, u-demo) are NOT real DB rows and NOT real inboxes —
+    // never use their emails for a Stripe account.
+    const auth = await resolveAuthCompany(request as Request | undefined);
+    let email: string | null = null;
+    if (auth?.userId && !SEED_USER_IDS.has(auth.userId)) {
+      const u = await sql()`SELECT email FROM users WHERE id = ${auth.userId}::uuid LIMIT 1`;
+      if (u.length && u[0].email) email = String(u[0].email);
+    }
+    if (!email) {
+      // Prefer a real (non-seed) user on the company: oldest admin first, then any non-seed user.
+      const u = await sql()`
+        SELECT email FROM users WHERE company_id = ${data.companyId}::uuid
+          AND id NOT IN ('u1','u2','u3','u4','u-demo','u5','u6','u7')
+        ORDER BY (role = 'admin') DESC, created_at ASC LIMIT 1`;
+      if (u.length && u[0].email) email = String(u[0].email);
+    }
+    if (!email) {
+      // No real user: the company has only seed users, so require a real contact —
+      // fail loudly rather than silently creating a Stripe account bound to a fake mailbox.
+      throw new Error(
+        "Add a real user (with a real email) to this company before connecting Stripe — " +
+        "Stripe sends all verification emails to the account owner's inbox.",
+      );
+    }
     const acct = await createAcct({ email, businessName: companyRows[0].name });
     await sql()`
       UPDATE companies SET stripe_connect_account_id = ${acct.id} WHERE id = ${data.companyId}::uuid`;

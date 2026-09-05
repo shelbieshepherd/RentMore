@@ -29,7 +29,7 @@ const DEMO_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 // Seed users are not real DB rows; they belong to the demo company.
 const SEED_USER_IDS = new Set(["u1", "u2", "u3", "u4", "u-demo", "u5", "u6", "u7"]);
 
-export { DEMO_COMPANY_ID };
+export { DEMO_COMPANY_ID, SEED_USER_IDS };
 
 function parseSessionUserId(cookieHeader: string | null): string | null {
   if (!cookieHeader) return null;
