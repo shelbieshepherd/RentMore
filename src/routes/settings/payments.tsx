@@ -14,6 +14,7 @@ interface ConnectStatus {
   isDemo: boolean;
   chargesEnabled?: boolean;
   cardPaymentsActive?: boolean;
+  cardPaymentsCapability?: string | null;
   requirements?: {
     currentlyDue: string[];
     eventuallyDue: string[];
@@ -189,7 +190,7 @@ function SettingsPaymentsPage() {
                     </ul>
                     <p className="mt-2 text-xs text-amber-700">
                       Stripe status: charges {status.chargesEnabled ? "enabled" : "not enabled"} · card capability{" "}
-                      {status.cardPaymentsActive ? "active" : "not active"}.
+                      {status.cardPaymentsActive ? "active" : `not active (${status.cardPaymentsCapability || "unknown"})`}.
                     </p>
                     <p className="mt-2 text-xs text-amber-700">
                       If the list above is empty, Stripe is still reviewing your account — it becomes

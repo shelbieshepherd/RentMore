@@ -96,6 +96,8 @@ export interface ConnectReadiness {
   accountId: string;
   chargesEnabled: boolean;
   cardPaymentsActive: boolean;
+  /** Raw Stripe capability value: undefined/"inactive"/"pending"/"active". */
+  cardPaymentsCapability: string | null;
   ready: boolean;
   /** Non-sensitive Stripe account-requirements summary (what is still needed
    * before the account can charge). Read-only; never includes bank/identity
@@ -116,11 +118,13 @@ export interface ConnectReadiness {
 export async function getConnectReadiness(accountId: string): Promise<ConnectReadiness> {
   const acct = await stripe().accounts.retrieve(accountId);
   const cardPaymentsActive = acct.capabilities?.card_payments === "active";
+  const cardPaymentsCapability = acct.capabilities?.card_payments ?? null;
   const chargesEnabled = !!acct.charges_enabled;
   return {
     accountId: acct.id,
     chargesEnabled,
     cardPaymentsActive,
+    cardPaymentsCapability,
     ready: chargesEnabled && cardPaymentsActive,
     requirements: acct.requirements
       ? {

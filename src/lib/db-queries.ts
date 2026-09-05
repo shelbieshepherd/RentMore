@@ -866,6 +866,7 @@ export const setConnectOnboardingComplete = createServerFn()
         accountId: acctId,
         chargesEnabled: readiness.chargesEnabled,
         cardPaymentsActive: readiness.cardPaymentsActive,
+        cardPaymentsCapability: readiness.cardPaymentsCapability,
         requirements: readiness.requirements,
       };
     }
@@ -899,12 +900,14 @@ export const fetchConnectStatus = createServerFn()
     let requirements: any = null;
     let chargesEnabled = false;
     let cardPaymentsActive = false;
+    let cardPaymentsCapability: string | null = null;
     if (acctId) {
       try {
         const { getConnectReadiness } = await import("~/lib/stripe");
         const r = await getConnectReadiness(String(acctId));
         chargesEnabled = r.chargesEnabled;
         cardPaymentsActive = r.cardPaymentsActive;
+        cardPaymentsCapability = r.cardPaymentsCapability;
         requirements = r.requirements;
       } catch {
         // Stripe temporarily unreachable — keep flag as stored, requirements null.
@@ -916,6 +919,7 @@ export const fetchConnectStatus = createServerFn()
       isDemo: false,
       chargesEnabled,
       cardPaymentsActive,
+      cardPaymentsCapability,
       requirements,
     };
   });
