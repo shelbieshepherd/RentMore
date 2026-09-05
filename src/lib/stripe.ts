@@ -92,6 +92,27 @@ export interface ConnectReadiness {
  * charges_enabled must be true AND the card_payments capability must be 'active'
  * (not 'inactive'/'pending'). Used before flipping companies.stripe_connect_onboarding_complete.
  */
+export interface ConnectReadiness {
+  accountId: string;
+  chargesEnabled: boolean;
+  cardPaymentsActive: boolean;
+  ready: boolean;
+  /** Non-sensitive Stripe account-requirements summary (what is still needed
+   * before the account can charge). Read-only; never includes bank/identity
+   * data — just the requirement keys/strings Stripe itself reports. */
+  requirements: {
+    currentlyDue: string[];
+    eventuallyDue: string[];
+    pastDue: string[];
+    disabledReason: string | null;
+  } | null;
+}
+/**
+ * Retrieve a connected account and report whether it can ACTUALLY charge cards.
+ * "Onboarding complete" is only meaningful if the account can process charges:
+ * charges_enabled must be true AND the card_payments capability must be 'active'
+ * (not 'inactive'/'pending'). Used before flipping companies.stripe_connect_onboarding_complete.
+ */
 export async function getConnectReadiness(accountId: string): Promise<ConnectReadiness> {
   const acct = await stripe().accounts.retrieve(accountId);
   const cardPaymentsActive = acct.capabilities?.card_payments === "active";
@@ -101,6 +122,14 @@ export async function getConnectReadiness(accountId: string): Promise<ConnectRea
     chargesEnabled,
     cardPaymentsActive,
     ready: chargesEnabled && cardPaymentsActive,
+    requirements: acct.requirements
+      ? {
+          currentlyDue: acct.requirements.currently_due ?? [],
+          eventuallyDue: acct.requirements.eventually_due ?? [],
+          pastDue: acct.requirements.past_due ?? [],
+          disabledReason: acct.requirements.disabled_reason ?? null,
+        }
+      : null,
   };
 }
 export interface CheckoutSessionInput {

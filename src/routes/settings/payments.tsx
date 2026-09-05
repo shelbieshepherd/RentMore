@@ -12,6 +12,14 @@ interface ConnectStatus {
   accountId: string | null;
   onboardingComplete: boolean;
   isDemo: boolean;
+  chargesEnabled?: boolean;
+  cardPaymentsActive?: boolean;
+  requirements?: {
+    currentlyDue: string[];
+    eventuallyDue: string[];
+    pastDue: string[];
+    disabledReason: string | null;
+  } | null;
 }
 
 function getCookie(name: string): string | null {
@@ -164,6 +172,27 @@ function SettingsPaymentsPage() {
             ) : (
               <>
                 {notice && <p className="text-sm text-green-700">{notice}</p>}
+                {status?.requirements && !status.onboardingComplete && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-semibold">{status.chargesEnabled ? "Card payments are not active yet" : "Your Stripe account is not charge-enabled yet"}</p>
+                    <p className="mt-1 text-amber-800">
+                      Stripe reports the following still-needed requirements before online payments go live —
+                      finish these from your Stripe account (or via “Resume onboarding”):
+                    </p>
+                    <ul className="mt-2 list-disc pl-5 space-y-1">
+                      {(status.requirements.currentlyDue?.length ? status.requirements.currentlyDue : status.requirements.eventuallyDue).map((req) => (
+                        <li key={req}>{req}</li>
+                      ))}
+                      {status.requirements.disabledReason ? (
+                        <li className="font-medium">Disabled reason: {status.requirements.disabledReason}</li>
+                      ) : null}
+                    </ul>
+                    <p className="mt-2 text-xs text-amber-700">
+                      If the list above is empty, Stripe is still reviewing your account — it becomes
+                      charge-enabled automatically once review finishes (no action needed from you).
+                    </p>
+                  </div>
+                )}
                 <OnboardingWizard
                   companyId={companyId}
                   accountId={status?.accountId ?? null}

@@ -860,7 +860,14 @@ export const setConnectOnboardingComplete = createServerFn()
       return { success: false, reason: "retrieve_failed", message: e?.message };
     }
     if (!readiness.ready) {
-      return { success: false, reason: "not_ready", accountId: acctId };
+      return {
+        success: false,
+        reason: "not_ready",
+        accountId: acctId,
+        chargesEnabled: readiness.chargesEnabled,
+        cardPaymentsActive: readiness.cardPaymentsActive,
+        requirements: readiness.requirements,
+      };
     }
     await sql()`
       UPDATE companies SET stripe_connect_onboarding_complete = true WHERE id = ${data.companyId}::uuid`;
@@ -879,16 +886,37 @@ export const fetchConnectStatus = createServerFn()
       FROM companies WHERE id = ${data.companyId}::uuid LIMIT 1`;
     if (!rows.length) throw new Error("Company not found");
     const acctId = rows[0].stripe_connect_account_id;
+    const onboardingComplete = !!rows[0].stripe_connect_onboarding_complete;
     // DEMO company: keep the simulated-demo experience UNTIL a real Stripe
     // Connect account is wired (owner completes Express onboarding); once wired,
     // behave like a real company so card-saving works end-to-end in the demo.
     if (data.companyId === DEFAULT_COMPANY_ID && !acctId) {
-      return { accountId: null, onboardingComplete: false, isDemo: true };
+      return { accountId: null, onboardingComplete: false, isDemo: true, requirements: null };
+    }
+    // Live readiness + requirements (what Stripe still needs before the account
+    // can charge). Read-only and non-sensitive; lets Payment Settings explain
+    // exactly why payments aren't live yet.
+    let requirements: any = null;
+    let chargesEnabled = false;
+    let cardPaymentsActive = false;
+    if (acctId) {
+      try {
+        const { getConnectReadiness } = await import("~/lib/stripe");
+        const r = await getConnectReadiness(String(acctId));
+        chargesEnabled = r.chargesEnabled;
+        cardPaymentsActive = r.cardPaymentsActive;
+        requirements = r.requirements;
+      } catch {
+        // Stripe temporarily unreachable — keep flag as stored, requirements null.
+      }
     }
     return {
       accountId: acctId || null,
-      onboardingComplete: !!rows[0].stripe_connect_onboarding_complete,
+      onboardingComplete,
       isDemo: false,
+      chargesEnabled,
+      cardPaymentsActive,
+      requirements,
     };
   });
 
